@@ -45,7 +45,6 @@ def test_torchfire_forward():
 def test_vjp_assemble_eval():
     bob = fd_to_torch(assemble_firedrake, templates, "bob")
     J = bob.apply(*inputs)
-    J.backward()
     vjp_out = torch.autograd.grad(J, inputs)
 
     fdm_jac0 = fdm.jacobian(ff0)(np_inputs[0])
@@ -56,3 +55,17 @@ def test_vjp_assemble_eval():
     check2 = np.allclose(vjp_out[1], fdm_jac1)
     check3 = np.allclose(vjp_out[2], fdm_jac2)
     assert check1 and check2 and check3
+
+def test_autograd_fecr_integration():
+    bob = fd_to_torch(assemble_firedrake, templates, "bob")
+    J = bob.apply(*inputs)
+    vjp_out = torch.autograd.grad(J, inputs, retain_graph=True, create_graph=True, allow_unused=True)
+
+    norm_2 = torch.linalg.norm(vjp_out[0], 2)
+    norm_2_out = torch.autograd.grad(norm_2, vjp_out[0], retain_graph=True, create_graph=True, allow_unused=True )[0]
+
+    fdm_jac0 = fdm.jacobian(ff0)(np_inputs[0])
+    norm_2_np = np.linalg.norm
+    norm_2_np_out = fdm.jacobian(norm_2_np)(fdm_jac0)[0]
+
+    assert np.allclose(norm_2_out.detach().numpy() , norm_2_np_out)
