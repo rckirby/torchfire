@@ -24,8 +24,10 @@ def fd_to_torch(fd_callable, templates, classname):
         np_output, fd_output, fd_input, tape = ctx.stuff
         g = np.ones_like(np_output)
         vjp_out = evaluate_pullback(fd_output, fd_input, tape, g)
-        t_output = [torch.tensor(t, requires_grad=True) for t in vjp_out]
-        return tuple(t_output)
+
+        t_output = [ grad_output * torch.tensor(t, requires_grad=True) for t in vjp_out]
+        grad_output = tuple(t_output)
+        return grad_output
 
     bases = (torch.autograd.Function,)
     members = {"forward": staticmethod(forward),

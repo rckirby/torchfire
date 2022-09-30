@@ -6,7 +6,7 @@ import ufl
 from torchfire import fd_to_torch
 import fdm
 from fecr import evaluate_primal, evaluate_pullback
-
+from torch.autograd import Variable
 mesh = firedrake.UnitSquareMesh(3, 2)
 V = firedrake.FunctionSpace(mesh, "P", 1)
 
@@ -26,6 +26,11 @@ def firedrake_function(u):
     F.interpolate( firedrake.sin(u * firedrake.pi) * firedrake.sin( x[1] * firedrake.pi))
     return F
 
+def firedrake_function(u):
+    x = firedrake.SpatialCoordinate(mesh)
+    F = firedrake.Function(V)
+    F.interpolate( firedrake.sin(u * firedrake.pi) * firedrake.sin( x[1] * firedrake.pi))
+    return F
 
 templates = (firedrake.Function(V), firedrake.Constant(0.0), firedrake.Constant(0.0))
 
@@ -41,10 +46,11 @@ ff2 = lambda z: ff(np_inputs[0], np_inputs[1], z)  # noqa: E731
 
 
 templates_2 = (firedrake.Function(V),)
-inputs_2 = (torch.ones(V.dim(), requires_grad=True))
-np_inputs_2 = np.array([t.detach().numpy().astype(np.float64()) for t in inputs_2])
-ff_2 = lambda *args: evaluate_primal(firedrake_function, templates_2, *args)[0]
+inputs_2 = (Variable(torch.ones(V.dim(), requires_grad=True), requires_grad=True),)
+np_inputs_2 = tuple([t.detach().numpy().astype(np.float64()) for t in inputs_2])
 
+ff_2 = lambda *args: evaluate_primal(firedrake_function, templates_2, *args)[0]
+ff_2_2 = lambda x: np.dot(ff_2(x), ff_2(x))  # noqa: E731
 
 
 def test_torchfire_forward():
@@ -56,11 +62,10 @@ def test_torchfire_forward():
 
 
 def test_vjp_assemble_eval():
-    numpy_output, _, _, _, = evaluate_primal(assemble_firedrake, templates, *np_inputs)
-
     bob = fd_to_torch(assemble_firedrake, templates, "bob")
     J = bob.apply(*inputs)
-    vjp_out = torch.autograd.grad(J, inputs)
+    grads = torch.ones_like(J)
+    vjp_out = torch.autograd.grad(J, inputs, grad_outputs=grads)
 
     fdm_jac0 = fdm.jacobian(ff0)(np_inputs[0])
     fdm_jac1 = fdm.jacobian(ff1)(np_inputs[1])
@@ -72,12 +77,12 @@ def test_vjp_assemble_eval():
     assert check1 and check2 and check3
 
 def test_autograd_fecr_integration():
-    numpy_output, _, _, _, = evaluate_primal(firedrake_function, templates_2, np_inputs_2)
-    fdm_jac0 = 2 * np.ones_like(ff_2(np_inputs[0])) @ fdm.jacobian(ff_2)(np_inputs[0])
-
     bob = fd_to_torch(firedrake_function, templates_2, "bob")
     x = bob.apply
-    y = torch.dot(x(inputs_2), x(inputs_2))
-    norm_2_out = torch.autograd.grad(y, inputs_2, retain_graph=True, create_graph=True, allow_unused=True)
+    xx = x(*inputs_2)
+    yy = torch.dot(xx, xx)
+    grads = torch.ones_like(yy)
+    norm_2_out = torch.autograd.grad(yy, inputs_2, grad_outputs=grads, retain_graph=True, create_graph=True, allow_unused=True)
 
+    fdm_jac0 = 2 * ff_2(np_inputs[0]) @ fdm.jacobian(ff_2)(np_inputs[0])
     assert np.allclose(norm_2_out[0].detach().numpy(), fdm_jac0)
