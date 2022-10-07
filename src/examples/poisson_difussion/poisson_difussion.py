@@ -68,7 +68,7 @@ def F_function(f):
 N = 8
 mesh = fd.UnitSquareMesh(N, 2)
 V = fd.FunctionSpace(mesh, "P", 1)
-V_f = fd.FunctionSpace(mesh, "P", 1)
+V_kappa = fd.FunctionSpace(mesh, "DG", 0)
 x = fd.SpatialCoordinate(mesh)
 print(V.dim())
 print(V_f.dim())
@@ -107,7 +107,7 @@ for epoch in range(1000):
 
     # Backpropagation
     optimizer.zero_grad()
-    loss.backward(retain_graph=True)
+    loss.backward()
     optimizer.step()
 
 plt.plot([loss.detach() for loss in losses][1:])

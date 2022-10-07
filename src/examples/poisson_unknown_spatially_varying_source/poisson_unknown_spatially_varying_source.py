@@ -26,12 +26,14 @@ class neural_net(torch.nn.Module):
 
     def __init__(self):
         super(neural_net, self).__init__()
-        self.linear1 = nn.Linear(27, 128)
-        self.activation1 = nn.Tanh()
-        self.linear2 = torch.nn.Linear(128, 27)
-        torch.nn.init.normal_(self.linear2.weight, mean=1.0, std=1.0)
-        self.activation2 = nn.LeakyReLU()
-        self.float()
+        self.linear1 = nn.Linear(27, 32)
+        self.activation1 = nn.ReLU()
+        self.linear2 = torch.nn.Linear(32, 32)
+        self.activation2 = nn.ReLU()
+        self.linear3 = torch.nn.Linear(32, 32)
+        self.activation3 = nn.ReLU()
+        self.linear4 = torch.nn.Linear(32, 27)
+        self.activation4 = nn.Tanh()
 
     def forward(self, x):
         x = torch.flatten(x)
@@ -39,6 +41,10 @@ class neural_net(torch.nn.Module):
         x = self.activation1(x)
         x = self.linear2(x)
         x = self.activation2(x)
+        x = self.linear3(x)
+        x = self.activation3(x)
+        x = self.linear4(x)
+        x = self.activation4(x)
         return x
 
 def a_function(f):
@@ -89,12 +95,12 @@ a_ = a.apply
 #############################
 
 error_L2 = nn.MSELoss()
-learning_rate = 0.001
+learning_rate = 0.0001
 f_nn = neural_net() #neural_net(N, 68, N)
 optimizer = torch.optim.Adam(f_nn.parameters(), lr=learning_rate)
 losses = []
 
-for epoch in range(1000):
+for epoch in range(3500):
     print(f"Epoch:{epoch}")
     f = f_nn(*inputs)
     y = a_(f)
@@ -107,12 +113,13 @@ for epoch in range(1000):
 
     # Backpropagation
     optimizer.zero_grad()
-    loss.backward(retain_graph=True)
+    loss.backward()
     optimizer.step()
 
 plt.plot([loss.detach() for loss in losses][1:])
 plt.savefig('losses.png')
 plt.close()
-print(f.detach().numpy())
+print("Predicted f:", f.detach().numpy())
+print("True f:", F_)
 plt.plot(f.detach().numpy())
 plt.savefig('f.png')
