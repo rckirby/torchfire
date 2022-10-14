@@ -26,12 +26,6 @@ def firedrake_function(u):
     F.interpolate( firedrake.sin(u * firedrake.pi) * firedrake.sin( x[1] * firedrake.pi))
     return F
 
-def firedrake_function(u):
-    x = firedrake.SpatialCoordinate(mesh)
-    F = firedrake.Function(V)
-    F.interpolate( firedrake.sin(u * firedrake.pi) * firedrake.sin( x[1] * firedrake.pi))
-    return F
-
 templates = (firedrake.Function(V), firedrake.Constant(0.0), firedrake.Constant(0.0))
 
 inputs = (torch.ones(V.dim(), requires_grad=True), torch.ones(1, requires_grad=True) * 0.5,
