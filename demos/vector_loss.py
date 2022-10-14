@@ -10,7 +10,7 @@ from torchfire import fd_to_torch
 mesh = UnitSquareMesh(3, 2)
 V = FunctionSpace(mesh, "P", 1)
 
-# zero on 
+# zero on 3 sides
 bc = DirichletBC(V, 0, (1, 2, 4))
 
 
