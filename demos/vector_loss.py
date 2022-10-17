@@ -32,15 +32,17 @@ templates = (firedrake.Function(V), firedrake.Function(V))
 # tabulating the KL expansion, calls assemble_firedrake
 # and takes the Euclidean norm of the vector.
 
-# Longer-term performance TODO:
-# `assemble` does a lot of Python futzing and bangs on a cache of
-# precompiled variational forms before actually invoking the low-level code
-# of calling it for small problems will probably swamp the cost of
-# doing arithmetic.
+# Need a function (Van & Jon?) that takes p (order of KL expansion) and a mesh
+# (get coordinates from mesh.coordinates.dat.data)
+# and returns a matrix A tabulating the KL eigenfunctions scaled by sqrt(lam_i)
+# at each grid point.
 #
-# Firedrake has a `FormAssembler` that bypasses this.  It shouldn't be
-# too hard to have our code call that instead.
-# But we need to make sure it still works with the adjoining/differentiation.
+# Then realizing kappa from the z vector is a matrix-vector product.
+#
+# Our loss function (Jorge!) takes random z and NN prediction u (both torch.tensors) and 
+# 1.) compute kappa at mesh points via A @ z and
+# 2.) exponentiate pointwise to get some ekappa tensory
+# 3.) pass ekappa and u through the torchfire-wrapped function to get a vector
+# 4.) return Euclidean norm of that vector.
 
-# For now `assemble` fulfills the right contract, so we should run with that
-# until we're ready to improve performance.
+# Afterwards, we can check that this really works and try to train a neural net with it!
