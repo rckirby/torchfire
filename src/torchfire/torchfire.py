@@ -17,7 +17,8 @@ def fd_to_torch(fd_callable, templates, classname):
             fd_callable, templates, *np_inputs)
         ctx.save_for_backward(*inputs)
         ctx.stuff = (np_output, fd_output, fd_input, tape)
-        return torch.tensor(np_output, requires_grad=True)
+        output = torch.as_tensor(np_output, dtype=torch.float64)
+        return output
 
     def backward(ctx, grad_output):
         #inputs, = ctx.saved_tensors
@@ -25,16 +26,14 @@ def fd_to_torch(fd_callable, templates, classname):
         g = np.ones_like(np_output)
         vjp_out = evaluate_pullback(fd_output, fd_input, tape, g)
 
-        t_output = [ grad_output * torch.tensor(t, requires_grad=True) for t in vjp_out]
-        grad_output = tuple(t_output)
-        return grad_output
+        if len( list(grad_output.size())) > 0:
+            t_output = (torch.outer(grad_output, torch.from_numpy(t) ) for i, t in enumerate(vjp_out))
+        else:
+            t_output = (grad_output * torch.from_numpy(t) for i, t in enumerate(vjp_out))
+        return tuple(t_output)
 
     bases = (torch.autograd.Function,)
     members = {"forward": staticmethod(forward),
                "backward": staticmethod(backward)}
 
     return type(classname, bases, members)
-
-
-
-

@@ -6,7 +6,7 @@ import ufl
 from torchfire import fd_to_torch
 import fdm
 from fecr import evaluate_primal, evaluate_pullback
-from torch.autograd import Variable
+
 mesh = firedrake.UnitSquareMesh(3, 2)
 V = firedrake.FunctionSpace(mesh, "P", 1)
 
@@ -40,8 +40,7 @@ ff2 = lambda z: ff(np_inputs[0], np_inputs[1], z)  # noqa: E731
 
 
 templates_2 = (firedrake.Function(V),)
-inputs_2 = (Variable(torch.ones(V.dim(), requires_grad=True), requires_grad=True),)
-np_inputs_2 = tuple([t.detach().numpy().astype(np.float64()) for t in inputs_2])
+inputs_2 = (torch.ones(V.dim(), requires_grad=True),)
 
 ff_2 = lambda *args: evaluate_primal(firedrake_function, templates_2, *args)[0]
 ff_2_2 = lambda x: np.dot(ff_2(x), ff_2(x))  # noqa: E731
@@ -74,9 +73,9 @@ def test_autograd_fecr_integration():
     bob = fd_to_torch(firedrake_function, templates_2, "bob")
     x = bob.apply
     xx = x(*inputs_2)
-    yy = torch.dot(xx, xx)
+    yy = xx @ xx
     grads = torch.ones_like(yy)
-    norm_2_out = torch.autograd.grad(yy, inputs_2, grad_outputs=grads, retain_graph=True, create_graph=True, allow_unused=True)
 
+    grad_x, = torch.autograd.grad(yy, inputs_2, grad_outputs=grads, create_graph=True)
     fdm_jac0 = 2 * ff_2(np_inputs[0]) @ fdm.jacobian(ff_2)(np_inputs[0])
-    assert np.allclose(norm_2_out[0].detach().numpy(), fdm_jac0)
+    assert np.allclose(grad_x.detach().numpy(), fdm_jac0)
