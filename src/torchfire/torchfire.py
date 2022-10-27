@@ -12,24 +12,26 @@ def fd_to_torch(fd_callable, templates, classname):
     the static forward and backward methods in terms of fecr."""
 
     def forward(ctx, *inputs):
-        np_inputs = [t.detach().numpy().astype(np.float64()) for t in inputs]
+        device = inputs[0].device
+        np_inputs = [t.cpu().detach().numpy().astype(np.float64()) for t in inputs]
         np_output, fd_output, fd_input, tape = evaluate_primal(
             fd_callable, templates, *np_inputs)
         ctx.save_for_backward(*inputs)
         ctx.stuff = (np_output, fd_output, fd_input, tape)
-        output = torch.as_tensor(np_output, dtype=torch.float64)
+        output = torch.as_tensor(np_output, dtype=torch.float64, device=device)
         return output
 
     def backward(ctx, grad_output):
-        #inputs, = ctx.saved_tensors
+        inputs = ctx.saved_tensors
+        device = inputs[0].device
         np_output, fd_output, fd_input, tape = ctx.stuff
         g = np.ones_like(np_output)
         vjp_out = evaluate_pullback(fd_output, fd_input, tape, g)
 
         if len( list(grad_output.size())) > 0:
-            t_output = (torch.outer(grad_output, torch.from_numpy(t) ) for i, t in enumerate(vjp_out))
+            t_output = (torch.outer(grad_output, torch.from_numpy(t).to(device)) for i, t in enumerate(vjp_out))
         else:
-            t_output = (grad_output * torch.from_numpy(t) for i, t in enumerate(vjp_out))
+            t_output = (grad_output * torch.from_numpy(t).to(device) for i, t in enumerate(vjp_out))
         return tuple(t_output)
 
     bases = (torch.autograd.Function,)
