@@ -27,7 +27,7 @@ def assemble_firedrake(u, expkappa):
     return assemble(inner(expkappa * grad(u), grad(v)) * dx - inner(f, v) * dx, bcs=bc)
 
 # device = torch.device('cuda')
-device = torch.device("cuda:0")
+device = torch.device("cpu")
 
 # from torch.utils.tensorboard import SummaryWriter
 # writer = SummaryWriter()

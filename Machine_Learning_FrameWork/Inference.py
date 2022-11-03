@@ -18,10 +18,10 @@ num_train = 600
 num_test = 500
 repeat_fac = 1 # Keep it 1 for now!
 # %%
-learning_rate = 1e-3
+learning_rate = 1e-2
 batch_size = 200
-epochs = 2000
-neurons = 500
+epochs = 1000
+neurons = 1000
 
 #! 0.1 Using Wandb to upload the approach
 # filename = 'Heat_TorchFire_#train_' + str(num_train) +'_to_' + str(num_train * repeat_fac) + '_LR_' + str(int(learning_rate))  + '_batch_' + str(batch_size) + '_neurons_' + str(neurons)
@@ -102,6 +102,7 @@ for j in free_index:
 
 Operator = torch.Tensor(Operator).to(device)
 
+
 #! 2. Building neural network
 class NeuralNetwork(nn.Module):
     def __init__(self):
@@ -153,88 +154,55 @@ class NeuralNetwork(nn.Module):
         f_out = torch.einsum('bjk, bk ->bj', A_kappa, u)[:, free_index]
         
         return torch.sum((f_out - load_f)**2)
-        
-#! 3. Training functions
-model = NeuralNetwork().to(device)
-optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-functional = nn.MSELoss()
 
-def train_loop(model, optimizer, z, u_train_true, load_f, functional):
-    """This is training loop, optimizing for neural network parameters
 
-    Args:
-        model (Pytorch functional): the neural network
-        optimizer (Pytorch functional): ADAM optimizer
-        z (tensort): vectors z
-        u_train_true (tensors): the true solutions w.r.t. vectors
-        load_f (tensort): the transformed load vector, that captures BCs as well
-        functional (Pytorch functional): Mean square error
+from fecr import from_numpy, to_numpy
+import matplotlib.pyplot as plt
+import firedrake as fd
+from firedrake import *
 
-    Returns:
-        loss_train (scalar): the sum of Residuals
-        train_u_acc (scalar): the mean square error of predicted solutions
-    """    
-    loss_train = 0
-    for batch in range(int(num_train / batch_size)):
-        
-        u_train_pred, kappa = model(z[(batch)*batch_size:(batch+1)*batch_size, :])
-        Residuals = model.FireDrake(u_train_pred, kappa, load_f)
-        
-        loss = Residuals/batch_size
-        loss_train += loss
-        
-        # Backpropagation
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+n= 15
+mesh = UnitSquareMesh(n, n)
+V = FunctionSpace(mesh, "P", 1)
+
+#! 1.3 Firedrake and Fenics switch matrix
+Fenics_to_Fridrake_mat = torch.tensor(np.reshape(pd.read_csv('data/Fenics_to_Firedrake' + '.csv').to_numpy(), ((n+1)**2, (n+1)**2))).to(device)
+
+def Fenics_to_Fridrake(u):
+    # Fenics_to_Fridrake_mat @ u
+    return torch.einsum('ij, bj -> bi', Fenics_to_Fridrake_mat.float(), u.float())
+
+def Fridrake_to_Fenics(u):
+    # Fenics_to_Fridrake_mat.T @ u
+    return torch.einsum('ij, bi -> bj', Fenics_to_Fridrake_mat.float(), u.float())
+
+def plot_u(u, i, filename):
+    # plot saving figure    
+    fig = plt.figure(figsize=(5, 5))
+    ax = plt.gca()
+    ax.set_aspect("equal")
+    l = tricontourf(from_numpy(np.reshape(u[i, :], (256,1)), fd.Function(V)), axes=ax)
+    triplot(mesh, axes=ax, interior_kw=dict(alpha=0.05))
+    plt.colorbar(l,fraction=0.046, pad=0.04)
     
+    plt.title(filename)
+    plt.savefig("Predicted_solutions/" + filename + str(i) + ".png", dpi=600, bbox_inches='tight')
+    plt.savefig("Predicted_solutions/" + filename + ".png", dpi=600, bbox_inches='tight')
+    plt.close()
 
-    u_train_pred, _ = model(z)
-    train_u_acc =  functional(u_train_pred, u_train_true.squeeze())
-    
-    return loss_train, train_u_acc
+True_u = Fenics_to_Fridrake(test_Observations_synthetic).cpu().detach().numpy().astype(np.float64)
 
-def test_loop(model, z_test, u_test_true, functional):
-    """This is test functions
+# import pdb
+# pdb.set_trace()
 
-    Args:
-        model (Pytorch model): model is forward function in network class (default)
-        z_test (torch tensor): vectors z (n_test x number of eigen modes)
-        u_test_true (torch tensor): true solutions w.r.t. vectors z
-        functional (Pytorch function): Mean Square Error
+# Load
+model_best = torch.load('best_model.pt')
+u_pred, _ = model_best(test_Parameters)
+u_pred = Fenics_to_Fridrake(u_pred).cpu().detach().numpy().astype(np.float64)
 
-    Returns:
-        scalar: the mean square error of predicted solutions
-    """
-    with torch.no_grad():
-        u_test_pred, _ = model(z_test)        
-        test_u_acc =  functional(u_test_pred, u_test_true.squeeze())
-        
-    return test_u_acc
+sample = 4
+plot_u(True_u, sample, 'True')
+plot_u(u_pred, sample, 'Pred')
 
-#! 3. Training process
-for t in range(epochs):
-    
-    print(f"Epoch {t+1}\n-------------------------------")
-    train_loss, train_u_acc = train_loop(model, optimizer, train_Parameters, train_Observations_synthetic, load_f, functional)
-    test_u_acc = test_loop(model, test_Parameters, test_Observations_synthetic, functional)
-    
-    # Save
-    test_u_acc_old = 100
-    if test_u_acc < test_u_acc_old:
-        torch.save(model, 'best_model.pt')
-        test_u_acc_old = test_u_acc
-    
-    print(f"Test Acc: {test_u_acc:>1e} Train Acc: {train_u_acc:>1e}  Train loss {train_loss:>1e} \n")
-    
-    # writer.add_scalar("Loss/train", train_loss, t)
-    
-    # wandb.log({"Test ACC": float(test_u_acc), "Train ACC": float(train_u_acc), "Train loss": float(train_loss)})
-
-# writer.flush()
-# writer.close()
-
-print("Done!")
-
-
-
+# import pdb
+# pdb.set_trace()

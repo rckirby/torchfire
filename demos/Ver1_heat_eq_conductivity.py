@@ -1,29 +1,39 @@
+import firedrake
+# We need to import firedrake_adjoint to fire up the taping!
+import firedrake_adjoint  # noqa
+import torch
+from fecr import evaluate_primal
+from firedrake import (DirichletBC, FunctionSpace, SpatialCoordinate, Constant,
+                       TestFunction, UnitSquareMesh, assemble, dx, grad, inner)
+from torch.autograd import Variable
+from torchfire import fd_to_torch
+
 import numpy as np
 import pandas as pd
 
-import torch
 from torch import nn
 from scipy import sparse
 
 # device = torch.device('cuda')
-device = torch.device("cpu")
+# device = torch.device("cuda:0")
+device = torch.device('cpu')
 
 # from torch.utils.tensorboard import SummaryWriter
 # writer = SummaryWriter()
 
 # %%
-#! 0. Initial parameters and training parameters
+# ! 0. Initial parameters and training parameters
 num_train2 = 10000
 num_train = 600
 num_test = 500
-repeat_fac = 1 # Keep it 1 for now!
+repeat_fac = 1  # Keep it 1 for now!
 # %%
-learning_rate = 1e-3
+learning_rate = 1e-2
 batch_size = 200
 epochs = 2000
-neurons = 500
+neurons = 1000
 
-#! 0.1 Using Wandb to upload the approach
+# ! 0.1 Using Wandb to upload the approach
 # filename = 'Heat_TorchFire_#train_' + str(num_train) +'_to_' + str(num_train * repeat_fac) + '_LR_' + str(int(learning_rate))  + '_batch_' + str(batch_size) + '_neurons_' + str(neurons)
 # import wandb
 # wandb.init(project="Torch_Fire", entity="hainguyenpho", name = filename)
@@ -32,7 +42,7 @@ neurons = 500
 # wandb.config.learning_rate = learning_rate
 # wandb.config.database = num_train
 
-#! 1. Loading data by pandas
+# ! 1. Loading data by pandas
 train_input_file_name = 'poisson_2D_state_full_train_d' + str(num_train2) + '_n15_AC_1_1_pt5'
 train_output_file_name = 'poisson_2D_parameter_train_d' + str(num_train2) + '_n15_AC_1_1_pt5'
 test_input_file_name = 'poisson_2D_state_full_test_d' + str(num_test) + '_n15_AC_1_1_pt5'
@@ -62,19 +72,19 @@ print(test_Observations_synthetic.shape)
 print(test_Parameters.shape)
 
 # %% [markdown]
-#! 1.2 Loading eigenvalues, eigenvectors
-#? 1.2 Load Eigenvalue, Eigenvectors, observed indices, prematrices
-#? Physical model information
+# ! 1.2 Loading eigenvalues, eigenvectors
+# ? 1.2 Load Eigenvalue, Eigenvectors, observed indices, prematrices
+# ? Physical model information
 n = 15
 num_observation = 10  # number of observed points
-dimension_of_PoI = (n + 1)**2  # external force field
+dimension_of_PoI = (n + 1) ** 2  # external force field
 num_truncated_series = 15
 
 df_Eigen = pd.read_csv('data/Eigenvector_data' + '.csv')
 df_Sigma = pd.read_csv('data/Eigen_value_data' + '.csv')
 
-Eigen = torch.tensor(np.reshape(df_Eigen.to_numpy(),(dimension_of_PoI, num_truncated_series))).to(device)
-Sigma = torch.tensor(np.reshape(df_Sigma.to_numpy(),(num_truncated_series, num_truncated_series))).to(device)
+Eigen = torch.tensor(np.reshape(df_Eigen.to_numpy(), (dimension_of_PoI, num_truncated_series))).to(device)
+Sigma = torch.tensor(np.reshape(df_Sigma.to_numpy(), (num_truncated_series, num_truncated_series))).to(device)
 
 df_obs = pd.read_csv('data/poisson_2D_obs_indices_o10_n15' + '.csv')
 obs_indices = np.reshape(df_obs.to_numpy(), (num_observation, -1))
@@ -87,35 +97,61 @@ pre_mat_stiff_sparse = sparse.load_npz('data/prestiffness_n15' + '.npz')
 load_vector_n15 = sparse.load_npz('data/load_vector_n15' + '.npz')
 load_vector = sparse.csr_matrix.todense(load_vector_n15).T
 
-# Acoo = pre_mat_stiff_sparse.tocoo()
-# Prematrix = torch.sparse.LongTensor(torch.LongTensor([Acoo.row.tolist(), Acoo.col.tolist()]),
-#                               torch.LongTensor(Acoo.data.astype(np.int32))).to(device)
 Prematrix = torch.tensor(pre_mat_stiff_sparse.toarray()).to(device)
 load_f = torch.tensor(load_vector).to(device)
 
 
-Operator = np.zeros((210,256))
+#! 1.3 Firedrake and Fenics switch matrix
+Fenics_to_Fridrake_mat = torch.tensor(np.reshape(pd.read_csv('data/Fenics_to_Firedrake' + '.csv').to_numpy(), ((n+1)**2, (n+1)**2))).to(device)
+
+def Fenics_to_Fridrake(u):
+    # Fenics_to_Fridrake_mat @ u
+    return torch.einsum('ij, bj -> bi', Fenics_to_Fridrake_mat.float(), u.float())
+
+def Fridrake_to_Fenics(u):
+    # Fenics_to_Fridrake_mat.T @ u
+    return torch.einsum('ij, bi -> bj', Fenics_to_Fridrake_mat.float(), u.float())
+    
+
+#! 1.4 Impose boundary trick
+Operator = np.zeros((210, 256))
 i = 0
 for j in free_index:
-        Operator[i,j] = 1
-        i += 1 
-
+    Operator[i, j] = 1
+    i += 1
 Operator = torch.Tensor(Operator).to(device)
 
-#! 2. Building neural network
+#! 1.5 TorchFire Mesh definition
+mesh = UnitSquareMesh(15, 15)
+V = FunctionSpace(mesh, "P", 1)
+bc = DirichletBC(V, 0, (1, 2, 4))
+templates = (firedrake.Function(V), firedrake.Function(V))
+
+def numpy_formatter(np_array):
+    return np.array2string(np_array, formatter={'float': lambda x: f'{x:.6f}'})
+
+# This assumes that e^kappa will be computed outside of firedrake
+# and stuffed into a piecewise linear FD function.
+def assemble_firedrake(u, expkappa):
+    x = SpatialCoordinate(mesh)
+    v = TestFunction(u.function_space())
+    f = Constant(20.0)
+
+    return assemble(inner(expkappa * grad(u), grad(v)) * dx - inner(f, v) * dx, bcs=bc)
+
+# ! 2. Building neural network
 class NeuralNetwork(nn.Module):
     def __init__(self):
         super(NeuralNetwork, self).__init__()
-        self.Neuralmap1 = nn.Linear(15,neurons)
+        self.Neuralmap1 = nn.Linear(15, neurons)
         self.Relu = nn.ReLU()
-        self.Neuralmap2 = nn.Linear(neurons,210)
+        self.Neuralmap2 = nn.Linear(neurons, 210)
         torch.nn.init.normal_(self.Neuralmap1.weight, mean=0.0, std=.01)
         torch.nn.init.normal_(self.Neuralmap2.weight, mean=0.0, std=.01)
-        
-        
+
     def forward(self, z):
         """Forward pass before using FireDrake
-        
+
         Args:
             z (tensor): the train vectors z
 
@@ -123,41 +159,53 @@ class NeuralNetwork(nn.Module):
             u (tensor): the predicted solutions from vectors z
             kappa (tensor): the kappa is transformed through eigenpairs
         """
-        
-        #? Mapping vectors z to nodal solutions at free nodes (excludes the boundary nodes)
+
+        # ? Mapping vectors z to nodal solutions at free nodes (excludes the boundary nodes)
         u = self.Neuralmap2(self.Relu(self.Neuralmap1(z.float())))
-        
-        #? THIS IS IMPOSED BOUNDARY CONDITIONS
+
+        # ? THIS IS IMPOSED BOUNDARY CONDITIONS
         u = torch.einsum('ij, bi -> bj', Operator, u)
+        u = Fenics_to_Fridrake(u)
         
-        #? generate kappa from vectors z
-        kappa = torch.einsum('ij,bj -> bi',torch.matmul(Eigen, Sigma).float(), z.float())
+        # ? generate kappa from vectors z
+        kappa = torch.einsum('ij,bj -> bi', torch.matmul(Eigen, Sigma).float(), z.float())
         kappa = torch.exp(kappa)
+        kappa = Fenics_to_Fridrake(kappa)
         
         return u, kappa
-    
-    def FireDrake(self, u, kappa, load_f):
-        """This is API FireDrake/TorchFire should be replaced
+
+    def ResidualTorch(self, u, kappa):
+        """This generates the sum of residuals of all the samples within a batch given a batch of
+        predicted solutions `u` and corresponding `exp(kappa)`
 
         Args:
             u (tensor): predicted solutions of neural network
-            kappa (tensor): the corresponding kappe to predicted solutions
+            kappa (tensor): the corresponding kappa to predicted solutions
 
         Returns:
-            scalar : the Residuals of all samples
-        """ 
-        
-        #? This is trick that is developed to avoid using FireDrake/TorchFire
-        A_kappa = torch.einsum('ij, bj -> bi', Prematrix.float(), kappa)
-        A_kappa = torch.reshape(A_kappa, (u.shape[0], 256, 256))
-        f_out = torch.einsum('bjk, bk ->bj', A_kappa, u)[:, free_index]
-        
-        return torch.sum((f_out - load_f)**2)
-        
-#! 3. Training functions
+            scalar : the sum of residuals of all the samples within a batch
+        """
+
+        mse_loss = nn.MSELoss()
+        res = fd_to_torch(assemble_firedrake, templates, "residualTorch")
+        residuals = torch.zeros(1, device=device)
+
+        for u_nn_, kappa_ in zip(u, kappa):
+            # Pass kappa and u through the torchfire-wrapped function to get a vector
+            res_ = res.apply(u_nn_, kappa_)
+
+            # Euclidean norm of that vector
+            loss = mse_loss(res_, torch.zeros_like(res_))
+            residuals += loss
+
+        return residuals
+
+
+# ! 3. Training functions
 model = NeuralNetwork().to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 functional = nn.MSELoss()
+
 
 def train_loop(model, optimizer, z, u_train_true, load_f, functional):
     """This is training loop, optimizing for neural network parameters
@@ -173,26 +221,27 @@ def train_loop(model, optimizer, z, u_train_true, load_f, functional):
     Returns:
         loss_train (scalar): the sum of Residuals
         train_u_acc (scalar): the mean square error of predicted solutions
-    """    
+    """
     loss_train = 0
     for batch in range(int(num_train / batch_size)):
-        
-        u_train_pred, kappa = model(z[(batch)*batch_size:(batch+1)*batch_size, :])
-        Residuals = model.FireDrake(u_train_pred, kappa, load_f)
-        
-        loss = Residuals/batch_size
+        u_train_pred, kappa = model(z[(batch) * batch_size:(batch + 1) * batch_size, :])
+        #Residuals = model.FireDrake(u_train_pred, kappa, load_f)
+
+        # This computes the residual loss given the tensors exp(kapp) and the neural network that generates the solution u_nn
+        residuals = model.ResidualTorch(u=u_train_pred, kappa=kappa)
+        loss = residuals / batch_size
         loss_train += loss
-        
+
         # Backpropagation
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-    
 
     u_train_pred, _ = model(z)
-    train_u_acc =  functional(u_train_pred, u_train_true.squeeze())
-    
+    train_u_acc = functional(u_train_pred, Fenics_to_Fridrake(u_train_true.squeeze()))
+
     return loss_train, train_u_acc
+
 
 def test_loop(model, z_test, u_test_true, functional):
     """This is test functions
@@ -207,34 +256,39 @@ def test_loop(model, z_test, u_test_true, functional):
         scalar: the mean square error of predicted solutions
     """
     with torch.no_grad():
-        u_test_pred, _ = model(z_test)        
-        test_u_acc =  functional(u_test_pred, u_test_true.squeeze())
-        
+        u_test_pred, _ = model(z_test)
+        test_u_acc = functional(u_test_pred, Fenics_to_Fridrake(u_test_true.squeeze()))
+
     return test_u_acc
 
-#! 3. Training process
+
+# ! 3. Training process
 for t in range(epochs):
-    
-    print(f"Epoch {t+1}\n-------------------------------")
-    train_loss, train_u_acc = train_loop(model, optimizer, train_Parameters, train_Observations_synthetic, load_f, functional)
+    print(f"Epoch {t + 1}\n-------------------------------")
+    train_loss, train_u_acc = train_loop(model, optimizer, train_Parameters, train_Observations_synthetic, load_f,
+                                         functional)
     test_u_acc = test_loop(model, test_Parameters, test_Observations_synthetic, functional)
+
+    str_test_u_acc = numpy_formatter(test_u_acc.cpu().detach().numpy())
+    str_train_u_acc = numpy_formatter(train_u_acc.cpu().detach().numpy())
+    str_train_loss = numpy_formatter(train_loss.cpu().detach().numpy()[0])
+    
+    
+    print(f"Test Acc:  {str_test_u_acc} Train Acc: {str_train_u_acc}  Train loss {str_train_loss} \n")
     
     # Save
     test_u_acc_old = 100
     if test_u_acc < test_u_acc_old:
         torch.save(model, 'best_model.pt')
         test_u_acc_old = test_u_acc
-    
-    print(f"Test Acc: {test_u_acc:>1e} Train Acc: {train_u_acc:>1e}  Train loss {train_loss:>1e} \n")
-    
+
     # writer.add_scalar("Loss/train", train_loss, t)
-    
+
     # wandb.log({"Test ACC": float(test_u_acc), "Train ACC": float(train_u_acc), "Train loss": float(train_loss)})
 
 # writer.flush()
 # writer.close()
 
 print("Done!")
-
 
 
