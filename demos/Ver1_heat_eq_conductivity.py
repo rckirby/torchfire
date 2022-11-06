@@ -2,10 +2,8 @@ import firedrake
 # We need to import firedrake_adjoint to fire up the taping!
 import firedrake_adjoint  # noqa
 import torch
-from fecr import evaluate_primal
 from firedrake import (DirichletBC, FunctionSpace, SpatialCoordinate, Constant,
                        TestFunction, UnitSquareMesh, assemble, dx, grad, inner)
-from torch.autograd import Variable
 from torchfire import fd_to_torch
 
 import numpy as np
@@ -124,7 +122,7 @@ Operator = torch.Tensor(Operator).to(device)
 #! 1.5 TorchFire Mesh definition
 mesh = UnitSquareMesh(15, 15)
 V = FunctionSpace(mesh, "P", 1)
-bc = DirichletBC(V, 0, (1, 2, 4))
+bc = DirichletBC(V, 0, (1, 2, 3))
 templates = (firedrake.Function(V), firedrake.Function(V))
 
 def numpy_formatter(np_array):
@@ -189,14 +187,14 @@ class NeuralNetwork(nn.Module):
         mse_loss = nn.MSELoss()
         res = fd_to_torch(assemble_firedrake, templates, "residualTorch")
         residuals = torch.zeros(1, device=device)
-
+        res_appply = res.apply
         for u_nn_, kappa_ in zip(u, kappa):
             # Pass kappa and u through the torchfire-wrapped function to get a vector
-            res_ = res.apply(u_nn_, kappa_)
-
+            res_ = res_appply(u_nn_, kappa_)
             # Euclidean norm of that vector
+
             loss = mse_loss(res_, torch.zeros_like(res_))
-            residuals += loss
+            residuals = residuals + loss
 
         return residuals
 
