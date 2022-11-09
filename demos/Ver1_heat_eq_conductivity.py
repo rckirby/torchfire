@@ -261,6 +261,7 @@ def test_loop(model, z_test, u_test_true, functional):
 
 
 # ! 3. Training process
+TRAIN_LOSS, TEST_ACC = [], []
 for t in range(epochs):
     print(f"Epoch {t + 1}\n-------------------------------")
     train_loss, train_u_acc = train_loop(model, optimizer, train_Parameters, train_Observations_synthetic, load_f,
@@ -271,7 +272,6 @@ for t in range(epochs):
     str_train_u_acc = numpy_formatter(train_u_acc.cpu().detach().numpy())
     str_train_loss = numpy_formatter(train_loss.cpu().detach().numpy()[0])
     
-    
     print(f"Test Acc:  {str_test_u_acc} Train Acc: {str_train_u_acc}  Train loss {str_train_loss} \n")
     
     # Save
@@ -279,14 +279,18 @@ for t in range(epochs):
     if test_u_acc < test_u_acc_old:
         torch.save(model, 'best_model.pt')
         test_u_acc_old = test_u_acc
-
+        
+    TRAIN_LOSS.append(train_loss.cpu().detach().numpy())
+    TEST_ACC.append(test_u_acc.cpu().detach().numpy())
+    
     # writer.add_scalar("Loss/train", train_loss, t)
-
     # wandb.log({"Test ACC": float(test_u_acc), "Train ACC": float(train_u_acc), "Train loss": float(train_loss)})
 
 # writer.flush()
 # writer.close()
-
+pd.DataFrame(np.asarray(TRAIN_LOSS)).to_csv(Path('data/TRAIN_LOSS.csv'), index=False)
+pd.DataFrame(np.asarray(TEST_ACC)).to_csv(Path('data/TEST_ACC.csv'), index=False)
+    
 print("Done!")
 
 
