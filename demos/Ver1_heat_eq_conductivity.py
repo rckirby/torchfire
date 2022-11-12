@@ -255,9 +255,15 @@ def test_loop(model, z_test, u_test_true, functional):
     """
     with torch.no_grad():
         u_test_pred, _ = model(z_test)
-        test_u_acc = functional(u_test_pred, Fenics_to_Fridrake(u_test_true.squeeze()))
+        test_u_acc = 0
+        # test_u_acc += functional(u_test_pred, Fenics_to_Fridrake(u_test_true.squeeze())) / functional(u_test_pred*0, Fenics_to_Fridrake(u_test_true.squeeze()))
+        for i in range(500):
+            test_u_acc += functional(u_test_pred[i,:], Fenics_to_Fridrake(u_test_true.squeeze())[i,:]) / functional(u_test_pred[i,:]*0, Fenics_to_Fridrake(u_test_true.squeeze())[i,:])
 
-    return test_u_acc
+        # import pdb
+        # pdb.set_trace()
+        
+    return test_u_acc/500
 
 
 # ! 3. Training process

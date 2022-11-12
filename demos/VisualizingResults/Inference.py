@@ -180,34 +180,50 @@ def Fridrake_to_Fenics(u):
     # Fenics_to_Fridrake_mat.T @ u
     return torch.einsum('ij, bi -> bj', Fenics_to_Fridrake_mat.float(), u.float())
 
+# def plot_u(u, u_pred, i):
+#     # plot saving figure    
+#     plt.figure(figsize=(12,6))
+    
+#     plt.subplot(121)
+#     ax = plt.gca()
+#     ax.set_aspect("equal")
+#     l = tricontourf(from_numpy(np.reshape(u[i, :], (256,1)), fd.Function(V)), axes=ax)
+#     triplot(mesh, axes=ax, interior_kw=dict(alpha=0.05))
+#     plt.colorbar(l,fraction=0.046, pad=0.04)
+#     # plt.title('True ' + str(i) + '-th Test Solution by Firedrake')
+    
+#     plt.subplot(122)
+#     ax = plt.gca()
+#     ax.set_aspect("equal")
+#     l = tricontourf(from_numpy(np.reshape(u_pred[i, :], (256,1)), fd.Function(V)), axes=ax)
+#     triplot(mesh, axes=ax, interior_kw=dict(alpha=0.05))
+#     plt.colorbar(l,fraction=0.046, pad=0.04)
+#     # plt.title('Predicted ' + str(i) + '-th Solution by nFEM')
+    
+#     # plt.savefig("Predicted_solutions/" + filename + str(i) + ".png", dpi=600, bbox_inches='tight')
+#     plt.savefig("Predicted_solutions/Pred_" + str(i) + ".png", dpi=600, bbox_inches='tight')
+#     plt.close()
+
 def plot_u(u, u_pred, i):
     # plot saving figure    
     plt.figure(figsize=(12,6))
     
-    plt.subplot(121)
-    ax = plt.gca()
-    ax.set_aspect("equal")
-    l = tricontourf(from_numpy(np.reshape(u[i, :], (256,1)), fd.Function(V)), axes=ax)
-    triplot(mesh, axes=ax, interior_kw=dict(alpha=0.05))
-    plt.colorbar(l,fraction=0.046, pad=0.04)
-    plt.title('True ' + str(i) + '-th Test Solution by Firedrake')
+    # plt.subplot(111)
+    # ax = plt.gca()
+    # ax.set_aspect("equal")
+    # l = tricontourf(from_numpy(np.reshape(u[i, :], (256,1)), fd.Function(V)), axes=ax)
+    # triplot(mesh, axes=ax, interior_kw=dict(alpha=0.05))
+    # plt.colorbar(l,fraction=0.046, pad=0.04)
+    # # plt.title('True ' + str(i) + '-th Test Solution by Firedrake')
+    # plt.savefig("Predicted_solutions/True_" + str(i) + ".png", dpi=600, bbox_inches='tight')
+    # plt.close()
     
-    plt.subplot(122)
+    plt.subplot(111)
     ax = plt.gca()
     ax.set_aspect("equal")
     l = tricontourf(from_numpy(np.reshape(u_pred[i, :], (256,1)), fd.Function(V)), axes=ax)
     triplot(mesh, axes=ax, interior_kw=dict(alpha=0.05))
     plt.colorbar(l,fraction=0.046, pad=0.04)
-    plt.title('Predicted ' + str(i) + '-th Solution by nFEM')
-    
-    # plt.subplot(223, projection='3d')
-    # ax = ax = plt.gca()
-    # trisurf(from_numpy(np.reshape(u_pred[i, :], (256,1)), fd.Function(V)), axes=ax)
-    # plt.title('True ' + str(i) + '-th Test Solution by Firedrake')
-    
-    # plt.subplot(224, projection='3d')
-    # ax = ax = plt.gca()
-    # trisurf(from_numpy(np.reshape(u_pred[i, :], (256,1)), fd.Function(V)), axes=ax)
     # plt.title('Predicted ' + str(i) + '-th Solution by nFEM')
     
     # plt.savefig("Predicted_solutions/" + filename + str(i) + ".png", dpi=600, bbox_inches='tight')
@@ -226,9 +242,9 @@ for sample in range(Cases):
     plot_u(True_u, u_pred, sample)
 
 
-import imageio.v2
-image_list = []
-for step in range(Cases):
-    image_list.append(imageio.v2.imread("Predicted_solutions/Pred_" + str(step) + ".png"))
-imageio.mimwrite('Animations.gif', image_list, duration=0.5)
-# imageio.mimwrite('animated_burger_sample_' + str(sample) + '.gif', image_list, fps = 60)
+# import imageio.v2
+# image_list = []
+# for step in range(Cases):
+#     image_list.append(imageio.v2.imread("Predicted_solutions/Pred_" + str(step) + ".png"))
+# imageio.mimwrite('Animations.gif', image_list, duration=0.5)
+# # imageio.mimwrite('animated_burger_sample_' + str(sample) + '.gif', image_list, fps = 60)
