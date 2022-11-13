@@ -171,6 +171,27 @@ class NeuralNetwork(nn.Module):
         kappa = Fenics_to_Fridrake(kappa)
         
         return u, kappa
+    
+    def SolverTorch(self, u, kappa):
+        """This generates the solution for all the samples within a batch given a batch of
+        predicted solutions `u` and corresponding `exp(kappa)`
+
+        Args:
+            u (tensor): predicted solutions of neural network
+            kappa (tensor): the corresponding kappa to predicted solutions
+
+        Returns:
+             torch.Tensor: the solutions for each pde in the batch
+        """
+        diff_solver = fd_to_torch(assemble_firedrake, templates, "solverTorch").apply
+        outputs = torch.zeros_like( u )
+        batch_size = u.shape[0] 
+        for i, (u_, kappa_) in enumerate(zip(u, kappa)):
+            output = diff_solver(u_, kappa_)
+            e_i = torch.zeros_like(u, dtype=torch.float64)
+            e_i[i, :] += 1.0
+            outputs += output * e_i
+        return outputs    
 
     def ResidualTorch(self, u, kappa):
         """This generates the sum of residuals of all the samples within a batch given a batch of
