@@ -128,14 +128,19 @@ templates = (firedrake.Function(V), firedrake.Function(V))
 def numpy_formatter(np_array):
     return np.array2string(np_array, formatter={'float': lambda x: f'{x:.6f}'})
 
-# This assumes that e^kappa will be computed outside of firedrake
+# This assumes that e^u will be computed outside of firedrake
 # and stuffed into a piecewise linear FD function.
-def assemble_firedrake(u, expkappa):
+def solve_firedrake(exp_u):
     x = SpatialCoordinate(mesh)
-    v = TestFunction(u.function_space())
+    y = Function(exp_u.function_space())
+    v = TestFunction(exp_u.function_space())
     f = Constant(20.0)
+    F = inner( exp_u * grad(y), grad(v)) * dx - f * v * dx 
+    solve( F == 0 , y, bcs=bc)
+    return y
 
-    return assemble(inner(expkappa * grad(u), grad(v)) * dx - inner(f, v) * dx, bcs=bc)
+# assemble_firedrake just takes a pair of functions now
+templates = (firedrake.Function(V),)
 
 # ! 2. Building neural network
 class NeuralNetwork(nn.Module):
@@ -171,33 +176,26 @@ class NeuralNetwork(nn.Module):
         kappa = Fenics_to_Fridrake(kappa)
         
         return u, kappa
-
-    def ResidualTorch(self, u, kappa):
-        """This generates the sum of residuals of all the samples within a batch given a batch of
-        predicted solutions `u` and corresponding `exp(kappa)`
+    
+    def SolverTorch(self, exp_u):
+        """This generates the solution for all the samples within a batch given a batch of
+        predicted solutions `exp(u)`
 
         Args:
-            u (tensor): predicted solutions of neural network
-            kappa (tensor): the corresponding kappa to predicted solutions
-
+            exp_u (tensor): predicted solutions of neural network
+            
         Returns:
-            scalar : the sum of residuals of all the samples within a batch
+             torch.Tensor: the solutions for each pde in the batch
         """
-
-        mse_loss = nn.MSELoss()
-        res = fd_to_torch(assemble_firedrake, templates, "residualTorch")
-        residuals = torch.zeros(1, device=device)
-        res_appply = res.apply
-        for u_nn_, kappa_ in zip(u, kappa):
-            # Pass kappa and u through the torchfire-wrapped function to get a vector
-            res_ = res_appply(u_nn_, kappa_)
-            # Euclidean norm of that vector
-
-            loss = mse_loss(res_, torch.zeros_like(res_))
-            residuals = residuals + loss
-
-        return residuals
-
+        diff_solver = fd_to_torch(solve_firedrake, templates, "solverTorch").apply
+        y_sols = torch.zeros_like( exp_u )
+        #batch_size = exp_u.shape[0] 
+        for i, exp_u_ in enumerate(exp_u):
+            e_i = torch.zeros_like(exp_u, dtype=torch.float64)
+            e_i[i, :] += 1.0
+            output = diff_solver(exp_u_)
+            y_sols += output * e_i
+        return y_sols    
 
 # ! 3. Training functions
 model = NeuralNetwork().to(device)
@@ -223,11 +221,10 @@ def train_loop(model, optimizer, z, u_train_true, load_f, functional):
     loss_train = 0
     for batch in range(int(num_train / batch_size)):
         u_train_pred, kappa = model(z[(batch) * batch_size:(batch + 1) * batch_size, :])
-        #Residuals = model.FireDrake(u_train_pred, kappa, load_f)
 
-        # This computes the residual loss given the tensors exp(kapp) and the neural network that generates the solution u_nn
-        residuals = model.ResidualTorch(u=u_train_pred, kappa=kappa)
-        loss = residuals / batch_size
+        # This computes computes the solutions y for each u in the batch
+        y_sols = SolverTorch()(u)
+        loss = mse_loss(y_sols, y_true) # Change y_true accordingly
         loss_train += loss
 
         # Backpropagation
