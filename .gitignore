@@ -3,3 +3,7 @@ tests/__pycache__/test.cpython-310-pytest-6.2.5.pyc
 tests/__pycache__/test_fd_to_torch.cpython-310-pytest-6.2.5.pyc
 src/torchfire/__pycache__/__init__.cpython-310.pyc
 src/torchfire/__pycache__/torchfire.cpython-310.pyc
+
+demos/VisualizingResults/
+demos/torchfire.py
+

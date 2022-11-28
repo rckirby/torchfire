@@ -1,3 +1,7 @@
+from firedrake import *
+import firedrake as fd
+import matplotlib.pyplot as plt
+from fecr import from_numpy, to_numpy
 import numpy as np
 import pandas as pd
 
@@ -16,7 +20,7 @@ device = torch.device("cpu")
 num_train2 = 10000
 num_train = 600
 num_test = 500
-repeat_fac = 1 # Keep it 1 for now!
+repeat_fac = 1  # Keep it 1 for now!
 # %%
 learning_rate = 1e-2
 batch_size = 200
@@ -54,8 +58,8 @@ print(test_Parameters.shape)
 
 # %% [markdown]
 #! 1.2 Loading eigenvalues, eigenvectors
-#? 1.2 Load Eigenvalue, Eigenvectors, observed indices, prematrices
-#? Physical model information
+# ? 1.2 Load Eigenvalue, Eigenvectors, observed indices, prematrices
+# ? Physical model information
 n = 15
 num_observation = 10  # number of observed points
 dimension_of_PoI = (n + 1)**2  # external force field
@@ -64,8 +68,8 @@ num_truncated_series = 15
 df_Eigen = pd.read_csv('data/Eigenvector_data' + '.csv')
 df_Sigma = pd.read_csv('data/Eigen_value_data' + '.csv')
 
-Eigen = torch.tensor(np.reshape(df_Eigen.to_numpy(),(dimension_of_PoI, num_truncated_series))).to(device)
-Sigma = torch.tensor(np.reshape(df_Sigma.to_numpy(),(num_truncated_series, num_truncated_series))).to(device)
+Eigen = torch.tensor(np.reshape(df_Eigen.to_numpy(), (dimension_of_PoI, num_truncated_series))).to(device)
+Sigma = torch.tensor(np.reshape(df_Sigma.to_numpy(), (num_truncated_series, num_truncated_series))).to(device)
 
 df_obs = pd.read_csv('data/poisson_2D_obs_indices_o10_n15' + '.csv')
 obs_indices = np.reshape(df_obs.to_numpy(), (num_observation, -1))
@@ -85,11 +89,11 @@ Prematrix = torch.tensor(pre_mat_stiff_sparse.toarray()).to(device)
 load_f = torch.tensor(load_vector).to(device)
 
 
-Operator = np.zeros((210,256))
+Operator = np.zeros((210, 256))
 i = 0
 for j in free_index:
-        Operator[i,j] = 1
-        i += 1 
+    Operator[i, j] = 1
+    i += 1
 
 Operator = torch.Tensor(Operator).to(device)
 
@@ -121,12 +125,12 @@ class NeuralNetwork(nn.Module):
         # ? THIS IS IMPOSED BOUNDARY CONDITIONS
         u = torch.einsum('ij, bi -> bj', Operator, u)
         u = Fenics_to_Fridrake(u)
-        
+
         # ? generate kappa from vectors z
         kappa = torch.einsum('ij,bj -> bi', torch.matmul(Eigen, Sigma).float(), z.float())
-        kappa = torch.exp(kappa)
+        # kappa = torch.exp(kappa)
         kappa = Fenics_to_Fridrake(kappa)
-        
+
         return u, kappa
 
     def ResidualTorch(self, u, kappa):
@@ -160,91 +164,99 @@ class NeuralNetwork(nn.Module):
 model = NeuralNetwork().to(device)
 
 
-from fecr import from_numpy, to_numpy
-import matplotlib.pyplot as plt
-import firedrake as fd
-from firedrake import *
-
-n= 15
+n = 15
 mesh = UnitSquareMesh(n, n)
 V = FunctionSpace(mesh, "P", 1)
 
 #! 1.3 Firedrake and Fenics switch matrix
 Fenics_to_Fridrake_mat = torch.tensor(np.reshape(pd.read_csv('data/Fenics_to_Firedrake' + '.csv').to_numpy(), ((n+1)**2, (n+1)**2))).to(device)
 
+
 def Fenics_to_Fridrake(u):
     # Fenics_to_Fridrake_mat @ u
     return torch.einsum('ij, bj -> bi', Fenics_to_Fridrake_mat.float(), u.float())
+
 
 def Fridrake_to_Fenics(u):
     # Fenics_to_Fridrake_mat.T @ u
     return torch.einsum('ij, bi -> bj', Fenics_to_Fridrake_mat.float(), u.float())
 
+
+def plot_u(u, u_pred, kappa, i):
+    # plot saving figure
+    plt.figure(figsize=(17, 6))
+
+    plt.subplot(131)
+    ax = plt.gca()
+    ax.set_aspect("equal")
+    l = tricontourf(from_numpy(np.reshape(kappa[i, :], (256, 1)), fd.Function(V)), axes=ax)
+    triplot(mesh, axes=ax, interior_kw=dict(alpha=0.05))
+    plt.colorbar(l, fraction=0.046, pad=0.04)
+    plt.title(str(i) + 'th conductivity field ' + r'$\kappa$')
+    
+    plt.subplot(132)
+    ax = plt.gca()
+    ax.set_aspect("equal")
+    l = tricontourf(from_numpy(np.reshape(u[i, :], (256, 1)), fd.Function(V)), axes=ax)
+    triplot(mesh, axes=ax, interior_kw=dict(alpha=0.05))
+    plt.colorbar(l, fraction=0.046, pad=0.04)
+    plt.title('True ' + str(i) + 'th Test Solution by Firedrake')
+
+    plt.subplot(133)
+    ax = plt.gca()
+    ax.set_aspect("equal")
+    l = tricontourf(from_numpy(np.reshape(u_pred[i, :], (256, 1)), fd.Function(V)), axes=ax)
+    triplot(mesh, axes=ax, interior_kw=dict(alpha=0.05))
+    plt.colorbar(l, fraction=0.046, pad=0.04)
+    plt.title('Predicted ' + str(i) + 'th Solution by nFEM')
+
+    plt.savefig("Predicted_solutions/Pred_" + str(i) + ".png", dpi=600, bbox_inches='tight')
+    plt.close()
+
 # def plot_u(u, u_pred, i):
-#     # plot saving figure    
+#     # plot saving figure
 #     plt.figure(figsize=(12,6))
-    
-#     plt.subplot(121)
-#     ax = plt.gca()
-#     ax.set_aspect("equal")
-#     l = tricontourf(from_numpy(np.reshape(u[i, :], (256,1)), fd.Function(V)), axes=ax)
-#     triplot(mesh, axes=ax, interior_kw=dict(alpha=0.05))
-#     plt.colorbar(l,fraction=0.046, pad=0.04)
-#     # plt.title('True ' + str(i) + '-th Test Solution by Firedrake')
-    
-#     plt.subplot(122)
+
+#     # plt.subplot(111)
+#     # ax = plt.gca()
+#     # ax.set_aspect("equal")
+#     # l = tricontourf(from_numpy(np.reshape(u[i, :], (256,1)), fd.Function(V)), axes=ax)
+#     # triplot(mesh, axes=ax, interior_kw=dict(alpha=0.05))
+#     # plt.colorbar(l,fraction=0.046, pad=0.04)
+#     # # plt.title('True ' + str(i) + '-th Test Solution by Firedrake')
+#     # plt.savefig("Predicted_solutions/True_" + str(i) + ".png", dpi=600, bbox_inches='tight')
+#     # plt.close()
+
+#     plt.subplot(111)
 #     ax = plt.gca()
 #     ax.set_aspect("equal")
 #     l = tricontourf(from_numpy(np.reshape(u_pred[i, :], (256,1)), fd.Function(V)), axes=ax)
 #     triplot(mesh, axes=ax, interior_kw=dict(alpha=0.05))
 #     plt.colorbar(l,fraction=0.046, pad=0.04)
 #     # plt.title('Predicted ' + str(i) + '-th Solution by nFEM')
-    
+
 #     # plt.savefig("Predicted_solutions/" + filename + str(i) + ".png", dpi=600, bbox_inches='tight')
 #     plt.savefig("Predicted_solutions/Pred_" + str(i) + ".png", dpi=600, bbox_inches='tight')
 #     plt.close()
 
-def plot_u(u, u_pred, i):
-    # plot saving figure    
-    plt.figure(figsize=(12,6))
-    
-    # plt.subplot(111)
-    # ax = plt.gca()
-    # ax.set_aspect("equal")
-    # l = tricontourf(from_numpy(np.reshape(u[i, :], (256,1)), fd.Function(V)), axes=ax)
-    # triplot(mesh, axes=ax, interior_kw=dict(alpha=0.05))
-    # plt.colorbar(l,fraction=0.046, pad=0.04)
-    # # plt.title('True ' + str(i) + '-th Test Solution by Firedrake')
-    # plt.savefig("Predicted_solutions/True_" + str(i) + ".png", dpi=600, bbox_inches='tight')
-    # plt.close()
-    
-    plt.subplot(111)
-    ax = plt.gca()
-    ax.set_aspect("equal")
-    l = tricontourf(from_numpy(np.reshape(u_pred[i, :], (256,1)), fd.Function(V)), axes=ax)
-    triplot(mesh, axes=ax, interior_kw=dict(alpha=0.05))
-    plt.colorbar(l,fraction=0.046, pad=0.04)
-    # plt.title('Predicted ' + str(i) + '-th Solution by nFEM')
-    
-    # plt.savefig("Predicted_solutions/" + filename + str(i) + ".png", dpi=600, bbox_inches='tight')
-    plt.savefig("Predicted_solutions/Pred_" + str(i) + ".png", dpi=600, bbox_inches='tight')
-    plt.close()
 
 True_u = Fenics_to_Fridrake(test_Observations_synthetic).cpu().detach().numpy().astype(np.float64)
 
 # Load
 model_best = torch.load('best_model.pt')
-u_pred, _ = model_best(test_Parameters)
+u_pred, kappa = model_best(test_Parameters)
 u_pred = (u_pred).cpu().detach().numpy().astype(np.float64)
+kappa = (kappa).cpu().detach().numpy().astype(np.float64)
 
-Cases = 1
+Cases = 40
 for sample in range(Cases):
-    plot_u(True_u, u_pred, sample)
+    plot_u(True_u, u_pred, kappa, sample)
 
 
-# import imageio.v2
-# image_list = []
-# for step in range(Cases):
-#     image_list.append(imageio.v2.imread("Predicted_solutions/Pred_" + str(step) + ".png"))
-# imageio.mimwrite('Animations.gif', image_list, duration=0.5)
-# # imageio.mimwrite('animated_burger_sample_' + str(sample) + '.gif', image_list, fps = 60)
+import imageio.v2
+image_list = []
+for step in range(Cases):
+    image_list.append(imageio.v2.imread("Predicted_solutions/Pred_" + str(step) + ".png"))
+imageio.mimwrite('Animations.gif', image_list, duration=0.5)
+# imageio.mimwrite('animated_burger_sample_' + str(sample) + '.gif', image_list, fps = 60)
+
