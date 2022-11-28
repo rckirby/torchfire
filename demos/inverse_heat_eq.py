@@ -1,37 +1,37 @@
-import firedrake
-# We need to import firedrake_adjoint to fire up the taping!
-import firedrake_adjoint  # noqa
-import torch
-from firedrake import (DirichletBC, FunctionSpace, SpatialCoordinate, Constant,
-                       TestFunction, UnitSquareMesh, assemble, dx, grad, inner)
-from torchfire import fd_to_torch
-from path import Path
+from pathlib import Path
 import numpy as np
 import pandas as pd
 
+import torch
+import firedrake
+from firedrake import (DirichletBC, FunctionSpace, SpatialCoordinate, Constant,
+                       TestFunction, UnitSquareMesh, Function, solve, dx, grad, inner)
 from torch import nn
 from scipy import sparse
 
+from torchfire import fd_to_torch
+
+torch.manual_seed(0)
+np.random.seed(0)
+
 # device = torch.device('cuda')
-# device = torch.device("cuda:0")
-device = torch.device('cpu')
+device = torch.device("cpu")
 
-# from torch.utils.tensorboard import SummaryWriter
-# writer = SummaryWriter()
+alpha = 8e3
 
-# %%
 # ! 0. Initial parameters and training parameters
 num_train2 = 10000
-num_train = 600
+num_train = 100
 num_test = 500
 repeat_fac = 1  # Keep it 1 for now!
-# %%
-learning_rate = 1e-2
-batch_size = 200
-epochs = 2000
-neurons = 1000
+learning_rate = 1e-3
+batch_size = num_train
+epochs = 1000000
+neurons = 5000
 
-# ! 0.1 Using Wandb to upload the approach
+noise_level = 0.005
+
+# # ! 0.1 Using Wandb to upload the approach
 # filename = 'Heat_TorchFire_#train_' + str(num_train) +'_to_' + str(num_train * repeat_fac) + '_LR_' + str(int(learning_rate))  + '_batch_' + str(batch_size) + '_neurons_' + str(neurons)
 # import wandb
 # wandb.init(project="Torch_Fire", entity="hainguyenpho", name = filename)
@@ -40,10 +40,11 @@ neurons = 1000
 # wandb.config.learning_rate = learning_rate
 # wandb.config.database = num_train
 
+
 # ! 1. Loading data by pandas
-train_input_file_name = 'poisson_2D_state_full_train_d' + str(num_train2) + '_n15_AC_1_1_pt5'
+train_input_file_name = 'poisson_2D_state_obs_train_o10_d' + str(num_train2) + '_n15_AC_1_1_pt5'
 train_output_file_name = 'poisson_2D_parameter_train_d' + str(num_train2) + '_n15_AC_1_1_pt5'
-test_input_file_name = 'poisson_2D_state_full_test_d' + str(num_test) + '_n15_AC_1_1_pt5'
+test_input_file_name = 'poisson_2D_state_obs_test_o10_d' + str(num_test) + '_n15_AC_1_1_pt5'
 test_output_file_name = 'poisson_2D_parameter_test_d' + str(num_test) + '_n15_AC_1_1_pt5'
 
 df_train_Observations = pd.read_csv('data/' + train_input_file_name + '.csv')
@@ -69,14 +70,19 @@ print(train_Parameters.shape)
 print(test_Observations_synthetic.shape)
 print(test_Parameters.shape)
 
-# %% [markdown]
+# ? 1.1 Add noise (WE DO NOT USE vmap, BE CAREFUL! )
+train_Observations = train_Observations_synthetic + torch.normal(0, 1, train_Observations_synthetic.shape).to(
+    device) * torch.unsqueeze(torch.max(train_Observations_synthetic, axis=1)[0].to(device), dim=1) * noise_level
+test_Observations = test_Observations_synthetic + torch.normal(0, 1, test_Observations_synthetic.shape).to(
+    device) * torch.unsqueeze(torch.max(test_Observations_synthetic, axis=1)[0].to(device), dim=1) * noise_level
+
 # ! 1.2 Loading eigenvalues, eigenvectors
 # ? 1.2 Load Eigenvalue, Eigenvectors, observed indices, prematrices
 # ? Physical model information
 n = 15
 num_observation = 10  # number of observed points
-dimension_of_PoI = (n + 1) ** 2  # external force field
-num_truncated_series = 15
+dimension_of_PoI = (n + 1)**2  # number of grid points
+num_truncated_series = 15  # dimension of z vector
 
 df_Eigen = pd.read_csv('data/Eigenvector_data' + '.csv')
 df_Sigma = pd.read_csv('data/Eigen_value_data' + '.csv')
@@ -85,10 +91,10 @@ Eigen = torch.tensor(np.reshape(df_Eigen.to_numpy(), (dimension_of_PoI, num_trun
 Sigma = torch.tensor(np.reshape(df_Sigma.to_numpy(), (num_truncated_series, num_truncated_series))).to(device)
 
 df_obs = pd.read_csv('data/poisson_2D_obs_indices_o10_n15' + '.csv')
-obs_indices = np.reshape(df_obs.to_numpy(), (num_observation, -1))
+obs_indices = torch.tensor(np.reshape(df_obs.to_numpy(), (num_observation, -1))).to(device).squeeze()
 
 df_free_index = pd.read_csv('data/Free_index_data' + '.csv')
-free_index = torch.tensor(df_free_index.to_numpy()).to(device)
+free_index = torch.tensor(df_free_index.to_numpy()).to(device).squeeze()
 
 boundary_matrix = sparse.load_npz('data/boundary_matrix_n15' + '.npz')
 pre_mat_stiff_sparse = sparse.load_npz('data/prestiffness_n15' + '.npz')
@@ -98,20 +104,6 @@ load_vector = sparse.csr_matrix.todense(load_vector_n15).T
 Prematrix = torch.tensor(pre_mat_stiff_sparse.toarray()).to(device)
 load_f = torch.tensor(load_vector).to(device)
 
-
-#! 1.3 Firedrake and Fenics switch matrix
-Fenics_to_Fridrake_mat = torch.tensor(np.reshape(pd.read_csv('data/Fenics_to_Firedrake' + '.csv').to_numpy(), ((n+1)**2, (n+1)**2))).to(device)
-
-def Fenics_to_Fridrake(u):
-    # Fenics_to_Fridrake_mat @ u
-    return torch.einsum('ij, bj -> bi', Fenics_to_Fridrake_mat.float(), u.float())
-
-def Fridrake_to_Fenics(u):
-    # Fenics_to_Fridrake_mat.T @ u
-    return torch.einsum('ij, bi -> bj', Fenics_to_Fridrake_mat.float(), u.float())
-    
-
-#! 1.4 Impose boundary trick
 Operator = np.zeros((210, 256))
 i = 0
 for j in free_index:
@@ -125,175 +117,139 @@ V = FunctionSpace(mesh, "P", 1)
 bc = DirichletBC(V, 0, (1, 2, 3))
 templates = (firedrake.Function(V), firedrake.Function(V))
 
-def numpy_formatter(np_array):
-    return np.array2string(np_array, formatter={'float': lambda x: f'{x:.6f}'})
-
-# This assumes that e^u will be computed outside of firedrake
-# and stuffed into a piecewise linear FD function.
 def solve_firedrake(exp_u):
     x = SpatialCoordinate(mesh)
     y = Function(exp_u.function_space())
     v = TestFunction(exp_u.function_space())
     f = Constant(20.0)
-    F = inner( exp_u * grad(y), grad(v)) * dx - f * v * dx 
+    F = inner( exp_u * grad(y), grad(v)) * dx - f * v * dx
     solve( F == 0 , y, bcs=bc)
     return y
 
 # assemble_firedrake just takes a pair of functions now
 templates = (firedrake.Function(V),)
 
+
+def numpy_formatter(np_array):
+    """
+    It takes a numpy array and returns a string representation of the array with 6 decimal places
+
+    :param np_array: The array to be printed
+    :return: the array as a string, with the float values rounded to 6 decimal places.
+    """
+    return np.array2string(np_array, formatter={'float': lambda x: f'{x:.6f}'})
+
 # ! 2. Building neural network
 class NeuralNetwork(nn.Module):
     def __init__(self):
         super(NeuralNetwork, self).__init__()
-        self.Neuralmap1 = nn.Linear(15, neurons)
+        self.Neuralmap1 = nn.Linear(num_observation, neurons)
         self.Relu = nn.ReLU()
-        self.Neuralmap2 = nn.Linear(neurons, 210)
-        torch.nn.init.normal_(self.Neuralmap1.weight, mean=0.0, std=.01)
-        torch.nn.init.normal_(self.Neuralmap2.weight, mean=0.0, std=.01)
+        self.Neuralmap2 = nn.Linear(neurons, num_truncated_series)
+        torch.nn.init.normal_(self.Neuralmap1.weight, mean=0.0, std=.02)
+        torch.nn.init.normal_(self.Neuralmap1.bias, mean=0.0, std=.000)
+        torch.nn.init.normal_(self.Neuralmap2.weight, mean=0.0, std=.02)
+        torch.nn.init.normal_(self.Neuralmap2.bias, mean=0.0, std=.000)
 
-    def forward(self, z):
+    def forward(self, u):
         """Forward pass before using FireDrake
 
         Args:
-            z (tensor): the train vectors z
+            u (tensor): the train observable vector u_obs
 
         Returns:
-            u (tensor): the predicted solutions from vectors z
-            kappa (tensor): the kappa is transformed through eigenpairs
+            z (tensor): parameter z vector
         """
 
-        # ? Mapping vectors z to nodal solutions at free nodes (excludes the boundary nodes)
-        u = self.Neuralmap2(self.Relu(self.Neuralmap1(z.float())))
+        # ? Mapping vectors u_obs to parameters z
+        z = self.Neuralmap2(self.Relu(self.Neuralmap1(u.float())))
 
-        # ? THIS IS IMPOSED BOUNDARY CONDITIONS
-        u = torch.einsum('ij, bi -> bj', Operator, u)
-        u = Fenics_to_Fridrake(u)
-        
         # ? generate kappa from vectors z
         kappa = torch.einsum('ij,bj -> bi', torch.matmul(Eigen, Sigma).float(), z.float())
         kappa = torch.exp(kappa)
-        kappa = Fenics_to_Fridrake(kappa)
-        
-        return u, kappa
-    
-    def SolverTorch(self, exp_u):
+
+        return z, kappa
+
+    def SolverTorch(self, kappa, train_observations):
         """This generates the solution for all the samples within a batch given a batch of
         predicted solutions `exp(u)`
 
         Args:
             exp_u (tensor): predicted solutions of neural network
-            
+
         Returns:
              torch.Tensor: the solutions for each pde in the batch
         """
         diff_solver = fd_to_torch(solve_firedrake, templates, "solverTorch").apply
-        y_sols = torch.zeros_like( exp_u )
-        #batch_size = exp_u.shape[0] 
-        for i, exp_u_ in enumerate(exp_u):
-            e_i = torch.zeros_like(exp_u, dtype=torch.float64)
-            e_i[i, :] += 1.0
-            output = diff_solver(exp_u_)
-            y_sols += output * e_i
-        return y_sols    
+        loss_mc = torch.zeros(1, device=device)
 
-# ! 3. Training functions
+        for i, (u_obs_true_, kappa_) in enumerate(zip(train_observations, kappa)):
+            u_ = diff_solver(kappa_).squeeze()[obs_indices]
+
+            # TODO: Modify this?
+            #u_nn_ = torch.einsum('ij, i -> j', Operator, u_)[obs_indices]
+            loss_mc += torch.mean(torch.square(u_ - u_obs_true_)) * num_observation / num_train
+
+        return loss_mc
+
+    # ! 3. Training functions
 model = NeuralNetwork().to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-functional = nn.MSELoss()
 
 
-def train_loop(model, optimizer, z, u_train_true, load_f, functional):
-    """This is training loop, optimizing for neural network parameters
+def train_loop(model, optimizer, z, u_train_true, load_f, alpha):
+    u_obs_batch, z_batch = u_train_true.float(), z.float()
 
-    Args:
-        model (Pytorch functional): the neural network
-        optimizer (Pytorch functional): ADAM optimizer
-        z (tensort): vectors z
-        u_train_true (tensors): the true solutions w.r.t. vectors
-        load_f (tensort): the transformed load vector, that captures BCs as well
-        functional (Pytorch functional): Mean square error
+    z_pred, kappa = model(u_obs_batch)
+    loss_ml = torch.mean(torch.square(z_pred - z_batch * 0)) * num_truncated_series
 
-    Returns:
-        loss_train (scalar): the sum of Residuals
-        train_u_acc (scalar): the mean square error of predicted solutions
-    """
-    loss_train = 0
-    for batch in range(int(num_train / batch_size)):
-        u_train_pred, kappa = model(z[(batch) * batch_size:(batch + 1) * batch_size, :])
+    loss_mc = model.SolverTorch(kappa, u_obs_batch)
+    loss = loss_ml + alpha * loss_mc
 
-        # This computes computes the solutions y for each u in the batch
-        y_sols = SolverTorch()(u)
-        loss = mse_loss(y_sols, y_true) # Change y_true accordingly
-        loss_train += loss
+    # Backpropagation
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
 
-        # Backpropagation
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+    z_pred, _ = model(u_train_true.float())
+    kappa_pred = torch.einsum('ij,bj -> bi', torch.matmul(Eigen, Sigma).float(), z_pred)
+    kappa_true = torch.einsum('ij,bj -> bi', torch.matmul(Eigen, Sigma).float(), z.float())
+    train_u_acc = torch.mean(torch.linalg.vector_norm(kappa_pred - kappa_true, dim=-1) ** 2 / torch.linalg.vector_norm(kappa_true, dim=-1)**2)
 
-    u_train_pred, _ = model(z)
-    train_u_acc = functional(u_train_pred, Fenics_to_Fridrake(u_train_true.squeeze()))
-
-    return loss_train, train_u_acc
+    return loss, train_u_acc
 
 
-def test_loop(model, z_test, u_test_true, functional):
-    """This is test functions
+def test_loop(model, z_test, u_test_true):
 
-    Args:
-        model (Pytorch model): model is forward function in network class (default)
-        z_test (torch tensor): vectors z (n_test x number of eigen modes)
-        u_test_true (torch tensor): true solutions w.r.t. vectors z
-        functional (Pytorch function): Mean Square Error
-
-    Returns:
-        scalar: the mean square error of predicted solutions
-    """
     with torch.no_grad():
-        u_test_pred, _ = model(z_test)
-        test_u_acc = 0
-        # test_u_acc += functional(u_test_pred, Fenics_to_Fridrake(u_test_true.squeeze())) / functional(u_test_pred*0, Fenics_to_Fridrake(u_test_true.squeeze()))
-        for i in range(500):
-            test_u_acc += functional(u_test_pred[i,:], Fenics_to_Fridrake(u_test_true.squeeze())[i,:]) / functional(u_test_pred[i,:]*0, Fenics_to_Fridrake(u_test_true.squeeze())[i,:])
+        z_test_pred, _ = model(u_test_true)
+        kappa_pred = torch.einsum('ij,bj -> bi', torch.matmul(Eigen, Sigma).float(), z_test_pred)
+        kappa_true = torch.einsum('ij,bj -> bi', torch.matmul(Eigen, Sigma).float(), z_test.float())
 
-        # import pdb
-        # pdb.set_trace()
-        
-    return test_u_acc/500
+    return torch.mean(torch.linalg.vector_norm(kappa_pred - kappa_true, dim=-1)**2 / torch.linalg.vector_norm(kappa_true, dim=-1)**2)
 
 
-# ! 3. Training process
+# ! 3. Training process# ! 3. Training process
 TRAIN_LOSS, TEST_ACC = [], []
+
 for t in range(epochs):
     print(f"Epoch {t + 1}\n-------------------------------")
-    train_loss, train_u_acc = train_loop(model, optimizer, train_Parameters, train_Observations_synthetic, load_f,
-                                         functional)
-    test_u_acc = test_loop(model, test_Parameters, test_Observations_synthetic, functional)
+    train_loss, train_u_acc = train_loop(model, optimizer, train_Parameters, train_Observations, load_f, alpha)
+    test_u_acc = test_loop(model, test_Parameters, test_Observations)
+
+    # wandb.log({"Test ACC": float(test_u_acc), "Train ACC": float(train_u_acc), "Train loss": float(train_loss)})
 
     str_test_u_acc = numpy_formatter(test_u_acc.cpu().detach().numpy())
     str_train_u_acc = numpy_formatter(train_u_acc.cpu().detach().numpy())
     str_train_loss = numpy_formatter(train_loss.cpu().detach().numpy()[0])
-    
+
     print(f"Test Acc:  {str_test_u_acc} Train Acc: {str_train_u_acc}  Train loss {str_train_loss} \n")
-    
+
     # Save
-    test_u_acc_old = 100
-    if test_u_acc < test_u_acc_old:
-        torch.save(model, 'best_model.pt')
-        test_u_acc_old = test_u_acc
-        
-    TRAIN_LOSS.append(train_loss.cpu().detach().numpy())
-    TEST_ACC.append(test_u_acc.cpu().detach().numpy())
-    
-    # writer.add_scalar("Loss/train", train_loss, t)
-    # wandb.log({"Test ACC": float(test_u_acc), "Train ACC": float(train_u_acc), "Train loss": float(train_loss)})
+    # test_u_acc_old = 100
+    # if test_u_acc < test_u_acc_old:
+    #     torch.save(model, 'best_model.pt')
+    #     test_u_acc_old = test_u_acc
 
-# writer.flush()
-# writer.close()
-pd.DataFrame(np.asarray(TRAIN_LOSS)).to_csv(Path('data/TRAIN_LOSS.csv'), index=False)
-pd.DataFrame(np.asarray(TEST_ACC)).to_csv(Path('data/TEST_ACC.csv'), index=False)
-    
-print("Done!")
-
-
+    # TRAIN_LOSS.append(train_loss.cpu().detach().numpy())
+    # TEST_ACC.append(test_u_acc.cpu().detach().numpy())
