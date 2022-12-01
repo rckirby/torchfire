@@ -71,6 +71,8 @@ for i in range((n**2)):
 
 def fenics_to_Firedrake(u):
     return Transform @ u
+def Firedrake_to_Fenics(u):
+    return Transform.T @ u
 
 pd.DataFrame(Transform.flatten()).to_csv(Path('data/Fenics_to_Firedrake.csv'), index=False)
 
@@ -121,16 +123,19 @@ df_Sigma = pd.read_csv('data/Eigen_value_data' + '.csv')
 Eigen = (np.reshape(df_Eigen.to_numpy(), (dimension_of_PoI, num_truncated_series)))
 Sigma = (np.reshape(df_Sigma.to_numpy(), (num_truncated_series, num_truncated_series)))
 
+df_obs = pd.read_csv('data/poisson_2D_obs_indices_o10_n15' + '.csv')
+obs_indices =  df_obs.to_numpy()
+
 df_free_index = pd.read_csv('data/Free_index_data' + '.csv')
 free_index = (df_free_index.to_numpy())
 
 # ? generate kappa from vectors z
-test_Parameters = np.einsum('ij,bj -> bi', np.matmul(Eigen, Sigma), test_Parameters)
-test_Parameters = np.exp(test_Parameters)
+train_Parameters = np.einsum('ij,bj -> bi', np.matmul(Eigen, Sigma), train_Parameters)
+train_Parameters = np.exp(train_Parameters)
 
 
 # PCIK sample 
-sample = 9
+sample = 0
 
 mesh = UnitSquareMesh(n, n)
 V = FunctionSpace(mesh, "P", 1)
@@ -139,33 +144,79 @@ u = Function(V)
 function = Function(V)
 
 # Replace kappa with yours here
-kappa = test_Parameters[sample,:]
-kappa_Firedrake = fenics_to_Firedrake(kappa)
+def solver_function(KAPPA, sample):
+    kappa = KAPPA[sample,:]
+    kappa_Firedrake = fenics_to_Firedrake(kappa)
 
-fd_exkappa = from_numpy(kappa_Firedrake, fd.Function(V)) # we need to explicitly provide template function for conversion
+    fd_exkappa = from_numpy(kappa_Firedrake, fd.Function(V)) # we need to explicitly provide template function for conversion
 
-v = TestFunction(u.function_space())
-f = Constant(20.0)
-F = inner(fd_exkappa * grad(u), grad(v)) * dx - inner(f, v) * dx
-solve(F == 0, u, bcs=bc)
+    v = TestFunction(u.function_space())
+    f = Constant(20.0)
+    F = inner(fd_exkappa * grad(u), grad(v)) * dx - inner(f, v) * dx
+    solve(F == 0, u, bcs=bc)
 
-solutions = to_numpy(u)
-
-# fig = plt.figure(figsize=(10, 10))
-# tricontourf(from_numpy(solutions, fd.Function(V)))
-# plt.savefig("Firedrake_solution.png", dpi=150)
-# plt.close()
+    solutions = Firedrake_to_Fenics(to_numpy(u))
+    return solutions
 
 
-v1 = fenics_to_Firedrake(test_Observations_synthetic[sample,:])
-# # plot saving figure    
-# fig = plt.figure(figsize=(10, 10))
-# tricontourf(from_numpy(v1, fd.Function(V)))
-# plt.savefig("Fenics_solution.png", dpi=150)
-# plt.close()
+solutions = solver_function(train_Parameters, sample)
+
+# # ! Plotting data to verify solvers
+fig = plt.figure(figsize=(10, 10))
+tricontourf(from_numpy(solutions, fd.Function(V)))
+plt.savefig("Firedrake_solution.png", dpi=150)
+plt.close()
+
+v1 = train_Observations_synthetic[sample,:]
+
+# plot saving figure    
+fig = plt.figure(figsize=(10, 10))
+tricontourf(from_numpy(fenics_to_Firedrake(v1), fd.Function(V)))
+plt.savefig("Fenics_solution.png", dpi=150)
+plt.close()
 
 print('Fenics Firedrake relative error test: ', np.linalg.norm(v1 - solutions) /np.linalg.norm(solutions) )
 
 
-# import pdb
-# pdb.set_trace()
+
+
+# ! Regenerating data from Firedrake solvers
+# ? TRAINING DATA
+train_Parameters = np.reshape(df_train_Parameters.to_numpy(), (num_train2, -1))
+train_Parameters = np.einsum('ij,bj -> bi', np.matmul(Eigen, Sigma), train_Parameters)
+train_Parameters = np.exp(train_Parameters)
+
+Obs = np.zeros((train_Parameters.shape[0], 256))
+Obs2 = np.zeros((train_Parameters.shape[0], 10))
+
+for i in range(train_Parameters.shape[0]):
+    sol = solver_function(train_Parameters, i)
+    Obs[i,:] = (sol).flatten()
+    Obs2[i,:] = (sol)[obs_indices].flatten()
+    
+df_prior_mean = pd.DataFrame({'state': Obs.flatten()})
+df_prior_mean.to_csv('data/poisson_2D_state_full_train_d10000_n15_AC_1_1_pt5.csv', index=False)
+
+df_prior_mean = pd.DataFrame({'state_obs': Obs2.flatten()})
+df_prior_mean.to_csv('data/poisson_2D_state_obs_train_o10_d10000_n15_AC_1_1_pt5.csv', index=False)
+
+
+# ? TESTING DATA
+test_Parameters = np.einsum('ij,bj -> bi', np.matmul(Eigen, Sigma), test_Parameters)
+test_Parameters = np.exp(test_Parameters)
+
+Obs = np.zeros((test_Parameters.shape[0], 256))
+Obs2 = np.zeros((test_Parameters.shape[0], 10))
+
+for i in range(test_Parameters.shape[0]):
+    sol = solver_function(test_Parameters, i)
+    Obs[i,:] = (sol).flatten()
+    Obs2[i,:] = (sol)[obs_indices].flatten()
+
+df_prior_mean = pd.DataFrame({'state': Obs.flatten()})
+df_prior_mean.to_csv('data/poisson_2D_state_full_test_d500_n15_AC_1_1_pt5.csv', index=False)
+
+df_prior_mean = pd.DataFrame({'state_obs': Obs2.flatten()})
+df_prior_mean.to_csv('data/poisson_2D_state_obs_test_o10_d500_n15_AC_1_1_pt5.csv', index=False)
+
+

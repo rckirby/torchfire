@@ -220,7 +220,7 @@ for t in range(epochs):
     str_train_loss = numpy_formatter(train_loss.cpu().detach().numpy()[0])
 
     print(f"Test Acc:  {str_test_u_acc} Train Acc: {str_train_u_acc}  Train loss {str_train_loss} \n")
-
+    
     # Save
     # test_u_acc_old = 100
     # if test_u_acc < test_u_acc_old:

@@ -157,7 +157,7 @@ class NeuralNetwork(nn.Module):
             u (tensor): the predicted solutions from vectors z
             kappa (tensor): the kappa is transformed through eigenpairs
         """
-
+        
         # ? Mapping vectors z to nodal solutions at free nodes (excludes the boundary nodes)
         u = self.Neuralmap2(self.Relu(self.Neuralmap1(z.float())))
 
@@ -215,7 +215,7 @@ def train_loop(model, optimizer, z, u_train_true, load_f, functional):
         u_train_true (tensors): the true solutions w.r.t. vectors
         load_f (tensort): the transformed load vector, that captures BCs as well
         functional (Pytorch functional): Mean square error
-
+    
     Returns:
         loss_train (scalar): the sum of Residuals
         train_u_acc (scalar): the mean square error of predicted solutions
