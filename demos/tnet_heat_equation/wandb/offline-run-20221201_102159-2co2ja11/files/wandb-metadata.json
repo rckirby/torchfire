@@ -1,0 +1,105 @@
+{
+    "os": "Linux-5.10.16.3-microsoft-standard-WSL2-x86_64-with-glibc2.35",
+    "python": "3.10.4",
+    "heartbeatAt": "2022-12-01T16:21:59.821943",
+    "startedAt": "2022-12-01T16:21:59.653928",
+    "docker": null,
+    "cuda": null,
+    "args": [],
+    "state": "running",
+    "program": "/home/georx/torchfire/torchfire/demos/TNet_heat_eq_V0.py",
+    "codePath": "demos/TNet_heat_eq_V0.py",
+    "git": {
+        "remote": "https://github.com/rckirby/torchfire.git",
+        "commit": "6d53e501f2c49092205531bb2827f99245dc3ed3"
+    },
+    "email": null,
+    "root": "/home/georx/torchfire/torchfire",
+    "host": "DESKTOP-KR52TAQ",
+    "username": "georx",
+    "executable": "/home/georx/torchfire/firedrake/bin/python3",
+    "cpu_count": 6,
+    "cpu_count_logical": 12,
+    "cpu_freq": {
+        "current": 2592.0089999999996,
+        "min": 0.0,
+        "max": 0.0
+    },
+    "cpu_freq_per_core": [
+        {
+            "current": 2592.009,
+            "min": 0.0,
+            "max": 0.0
+        },
+        {
+            "current": 2592.009,
+            "min": 0.0,
+            "max": 0.0
+        },
+        {
+            "current": 2592.009,
+            "min": 0.0,
+            "max": 0.0
+        },
+        {
+            "current": 2592.009,
+            "min": 0.0,
+            "max": 0.0
+        },
+        {
+            "current": 2592.009,
+            "min": 0.0,
+            "max": 0.0
+        },
+        {
+            "current": 2592.009,
+            "min": 0.0,
+            "max": 0.0
+        },
+        {
+            "current": 2592.009,
+            "min": 0.0,
+            "max": 0.0
+        },
+        {
+            "current": 2592.009,
+            "min": 0.0,
+            "max": 0.0
+        },
+        {
+            "current": 2592.009,
+            "min": 0.0,
+            "max": 0.0
+        },
+        {
+            "current": 2592.009,
+            "min": 0.0,
+            "max": 0.0
+        },
+        {
+            "current": 2592.009,
+            "min": 0.0,
+            "max": 0.0
+        },
+        {
+            "current": 2592.009,
+            "min": 0.0,
+            "max": 0.0
+        }
+    ],
+    "disk": {
+        "total": 250.98248672485352,
+        "used": 35.87239074707031
+    },
+    "gpu": "NVIDIA GeForce GTX 1660 Ti with Max-Q Design",
+    "gpu_count": 1,
+    "gpu_devices": [
+        {
+            "name": "NVIDIA GeForce GTX 1660 Ti with Max-Q Design",
+            "memory_total": 6442450944
+        }
+    ],
+    "memory": {
+        "total": 7.673511505126953
+    }
+}
