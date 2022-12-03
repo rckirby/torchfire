@@ -22,13 +22,13 @@ device = torch.device('cpu')
 # %%
 # ! 0. Initial parameters and training parameters
 num_train2 = 10000
-num_train = 600
+num_train = 10
 num_test = 500
 repeat_fac = 1  # Keep it 1 for now!
 # %%
-learning_rate = 1e-2
-batch_size = 200
-epochs = 2000
+learning_rate = 2e-3
+batch_size = num_train * repeat_fac
+epochs = 5000
 neurons = 1000
 
 # ! 0.1 Using Wandb to upload the approach
@@ -99,19 +99,21 @@ Prematrix = torch.tensor(pre_mat_stiff_sparse.toarray()).to(device)
 load_f = torch.tensor(load_vector).to(device)
 
 
-#! 1.3 Firedrake and Fenics switch matrix
-Fenics_to_Fridrake_mat = torch.tensor(np.reshape(pd.read_csv('data/Fenics_to_Firedrake' + '.csv').to_numpy(), ((n+1)**2, (n+1)**2))).to(device)
+# ! 1.3 Firedrake and Fenics switch matrix
+Fenics_to_Fridrake_mat = torch.tensor(np.reshape(pd.read_csv('data/Fenics_to_Firedrake' + '.csv').to_numpy(), ((n + 1)**2, (n + 1)**2))).to(device)
+
 
 def Fenics_to_Fridrake(u):
     # Fenics_to_Fridrake_mat @ u
     return torch.einsum('ij, bj -> bi', Fenics_to_Fridrake_mat.float(), u.float())
 
+
 def Fridrake_to_Fenics(u):
     # Fenics_to_Fridrake_mat.T @ u
     return torch.einsum('ij, bi -> bj', Fenics_to_Fridrake_mat.float(), u.float())
-    
 
-#! 1.4 Impose boundary trick
+
+# ! 1.4 Impose boundary trick
 Operator = np.zeros((210, 256))
 i = 0
 for j in free_index:
@@ -119,17 +121,20 @@ for j in free_index:
     i += 1
 Operator = torch.Tensor(Operator).to(device)
 
-#! 1.5 TorchFire Mesh definition
+# ! 1.5 TorchFire Mesh definition
 mesh = UnitSquareMesh(15, 15)
 V = FunctionSpace(mesh, "P", 1)
 bc = DirichletBC(V, 0, (1, 2, 3))
 templates = (firedrake.Function(V), firedrake.Function(V))
+
 
 def numpy_formatter(np_array):
     return np.array2string(np_array, formatter={'float': lambda x: f'{x:.6f}'})
 
 # This assumes that e^kappa will be computed outside of firedrake
 # and stuffed into a piecewise linear FD function.
+
+
 def assemble_firedrake(u, expkappa):
     x = SpatialCoordinate(mesh)
     v = TestFunction(u.function_space())
@@ -137,7 +142,12 @@ def assemble_firedrake(u, expkappa):
 
     return assemble(inner(expkappa * grad(u), grad(v)) * dx - inner(f, v) * dx, bcs=bc)
 
+res = fd_to_torch(assemble_firedrake, templates, "residualTorch")
+res_appply = res.apply
+    
 # ! 2. Building neural network
+
+
 class NeuralNetwork(nn.Module):
     def __init__(self):
         super(NeuralNetwork, self).__init__()
@@ -157,19 +167,19 @@ class NeuralNetwork(nn.Module):
             u (tensor): the predicted solutions from vectors z
             kappa (tensor): the kappa is transformed through eigenpairs
         """
-        
+
         # ? Mapping vectors z to nodal solutions at free nodes (excludes the boundary nodes)
         u = self.Neuralmap2(self.Relu(self.Neuralmap1(z.float())))
 
         # ? THIS IS IMPOSED BOUNDARY CONDITIONS
         u = torch.einsum('ij, bi -> bj', Operator, u)
         u = Fenics_to_Fridrake(u)
-        
+
         # ? generate kappa from vectors z
         kappa = torch.einsum('ij,bj -> bi', torch.matmul(Eigen, Sigma).float(), z.float())
         kappa = torch.exp(kappa)
         kappa = Fenics_to_Fridrake(kappa)
-        
+
         return u, kappa
 
     def ResidualTorch(self, u, kappa):
@@ -185,14 +195,16 @@ class NeuralNetwork(nn.Module):
         """
 
         mse_loss = nn.MSELoss()
-        res = fd_to_torch(assemble_firedrake, templates, "residualTorch")
         residuals = torch.zeros(1, device=device)
-        res_appply = res.apply
+        
         for u_nn_, kappa_ in zip(u, kappa):
             # Pass kappa and u through the torchfire-wrapped function to get a vector
+            
             res_ = res_appply(u_nn_, kappa_)
             # Euclidean norm of that vector
-
+            
+            # import pdb; pdb.set_trace()
+            
             loss = mse_loss(res_, torch.zeros_like(res_))
             residuals = residuals + loss
 
@@ -215,7 +227,7 @@ def train_loop(model, optimizer, z, u_train_true, load_f, functional):
         u_train_true (tensors): the true solutions w.r.t. vectors
         load_f (tensort): the transformed load vector, that captures BCs as well
         functional (Pytorch functional): Mean square error
-    
+
     Returns:
         loss_train (scalar): the sum of Residuals
         train_u_acc (scalar): the mean square error of predicted solutions
@@ -223,13 +235,15 @@ def train_loop(model, optimizer, z, u_train_true, load_f, functional):
     loss_train = 0
     for batch in range(int(num_train / batch_size)):
         u_train_pred, kappa = model(z[(batch) * batch_size:(batch + 1) * batch_size, :])
-        #Residuals = model.FireDrake(u_train_pred, kappa, load_f)
+        # Residuals = model.FireDrake(u_train_pred, kappa, load_f)
 
         # This computes the residual loss given the tensors exp(kapp) and the neural network that generates the solution u_nn
         residuals = model.ResidualTorch(u=u_train_pred, kappa=kappa)
         loss = residuals / batch_size
         loss_train += loss
 
+        # import pdb; pdb.set_trace()
+        
         # Backpropagation
         optimizer.zero_grad()
         loss.backward()
@@ -258,12 +272,12 @@ def test_loop(model, z_test, u_test_true, functional):
         test_u_acc = 0
         # test_u_acc += functional(u_test_pred, Fenics_to_Fridrake(u_test_true.squeeze())) / functional(u_test_pred*0, Fenics_to_Fridrake(u_test_true.squeeze()))
         for i in range(500):
-            test_u_acc += functional(u_test_pred[i,:], Fenics_to_Fridrake(u_test_true.squeeze())[i,:]) / functional(u_test_pred[i,:]*0, Fenics_to_Fridrake(u_test_true.squeeze())[i,:])
+            test_u_acc += functional(u_test_pred[i, :], Fenics_to_Fridrake(u_test_true.squeeze())[i, :]) / functional(u_test_pred[i, :] * 0, Fenics_to_Fridrake(u_test_true.squeeze())[i, :])
 
         # import pdb
         # pdb.set_trace()
-        
-    return test_u_acc/500
+
+    return test_u_acc / 500
 
 
 # ! 3. Training process
@@ -277,18 +291,18 @@ for t in range(epochs):
     str_test_u_acc = numpy_formatter(test_u_acc.cpu().detach().numpy())
     str_train_u_acc = numpy_formatter(train_u_acc.cpu().detach().numpy())
     str_train_loss = numpy_formatter(train_loss.cpu().detach().numpy()[0])
-    
+
     print(f"Test Acc:  {str_test_u_acc} Train Acc: {str_train_u_acc}  Train loss {str_train_loss} \n")
-    
+
     # Save
     test_u_acc_old = 100
     if test_u_acc < test_u_acc_old:
         torch.save(model, 'best_model.pt')
         test_u_acc_old = test_u_acc
-        
+
     TRAIN_LOSS.append(train_loss.cpu().detach().numpy())
     TEST_ACC.append(test_u_acc.cpu().detach().numpy())
-    
+
     # writer.add_scalar("Loss/train", train_loss, t)
     # wandb.log({"Test ACC": float(test_u_acc), "Train ACC": float(train_u_acc), "Train loss": float(train_loss)})
 
@@ -296,7 +310,5 @@ for t in range(epochs):
 # writer.close()
 pd.DataFrame(np.asarray(TRAIN_LOSS)).to_csv(Path('data/TRAIN_LOSS.csv'), index=False)
 pd.DataFrame(np.asarray(TEST_ACC)).to_csv(Path('data/TEST_ACC.csv'), index=False)
-    
+
 print("Done!")
-
-

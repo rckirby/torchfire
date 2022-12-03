@@ -3,6 +3,13 @@ import firedrake as fd
 from fecr import from_numpy, to_numpy
 from firedrake import (DirichletBC, FunctionSpace, SpatialCoordinate, Constant, Function,TestFunction, UnitSquareMesh, solve, dx, grad, inner)
 
+from firedrake import (DirichletBC, FunctionSpace, SpatialCoordinate, Constant,
+                       TestFunction, UnitSquareMesh, assemble, dx, grad, inner)
+from torchfire import fd_to_torch
+import firedrake
+import torch
+device = torch.device('cpu')
+
 from firedrake import *
 import numpy as np
 import numpy.linalg as la
@@ -78,6 +85,27 @@ pd.DataFrame(Transform.flatten()).to_csv(Path('data/Fenics_to_Firedrake.csv'), i
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+# ? PLEASE TAKE A LOOK FROM HERE JODGE
+
+
+
+
+
+
+
+
 #! 1. Loading data by pandas
 num_train2 = 10000
 num_train = 600
@@ -135,7 +163,7 @@ train_Parameters = np.exp(train_Parameters)
 
 
 # PCIK sample 
-sample = 0
+sample = 100
 
 mesh = UnitSquareMesh(n, n)
 V = FunctionSpace(mesh, "P", 1)
@@ -161,62 +189,98 @@ def solver_function(KAPPA, sample):
 
 solutions = solver_function(train_Parameters, sample)
 
-# # ! Plotting data to verify solvers
-fig = plt.figure(figsize=(10, 10))
-tricontourf(from_numpy(solutions, fd.Function(V)))
-plt.savefig("Firedrake_solution.png", dpi=150)
-plt.close()
 
-v1 = train_Observations_synthetic[sample,:]
+# ? THE SOLUTION AND KAPPA SHOULD GIVE ZEROS RESIDUALS!!! BUT IT DOES NOT???
+
+# ! 1.5 TorchFire Mesh definE
+templates = (firedrake.Function(V), firedrake.Function(V))
+
+def assemble_firedrake(u, expkappa):
+    x = SpatialCoordinate(mesh)
+    v = TestFunction(u.function_space())
+    f = Constant(20.0)
+
+    return assemble(inner(expkappa * grad(u), grad(v)) * dx - inner(f, v) * dx, bcs=bc)
+
+res = fd_to_torch(assemble_firedrake, templates, "residualTorch")
+res_appply = res.apply
+
+kappa_ = torch.tensor(fenics_to_Firedrake(train_Parameters[sample,:])).to(device)
+un_ = torch.tensor(solutions).to(device)
+
+print(res_appply(un_, kappa_))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# # ! Plotting data to verify solvers
+# fig = plt.figure(figsize=(10, 10))
+# tricontourf(from_numpy(fenics_to_Firedrake(solutions), fd.Function(V)))
+# plt.savefig("Firedrake_solution.png", dpi=150)
+# plt.close()
+
+# v1 = train_Observations_synthetic[sample,:]
 
 # plot saving figure    
-fig = plt.figure(figsize=(10, 10))
-tricontourf(from_numpy(fenics_to_Firedrake(v1), fd.Function(V)))
-plt.savefig("Fenics_solution.png", dpi=150)
-plt.close()
+# fig = plt.figure(figsize=(10, 10))
+# tricontourf(from_numpy(fenics_to_Firedrake(v1), fd.Function(V)))
+# plt.savefig("Fenics_solution.png", dpi=150)
+# plt.close()
 
-print('Fenics Firedrake relative error test: ', np.linalg.norm(v1 - solutions) /np.linalg.norm(solutions) )
+# print('Fenics Firedrake relative error test: ', np.linalg.norm(v1 - solutions) /np.linalg.norm(solutions) )
 
+# # ! Regenerating data from Firedrake solvers
+# # ? TRAINING DATA
+# train_Parameters = np.reshape(df_train_Parameters.to_numpy(), (num_train2, -1))
+# train_Parameters = np.einsum('ij,bj -> bi', np.matmul(Eigen, Sigma), train_Parameters)
+# train_Parameters = np.exp(train_Parameters)
 
+# Obs = np.zeros((train_Parameters.shape[0], 256))
+# Obs2 = np.zeros((train_Parameters.shape[0], 10))
 
-
-# ! Regenerating data from Firedrake solvers
-# ? TRAINING DATA
-train_Parameters = np.reshape(df_train_Parameters.to_numpy(), (num_train2, -1))
-train_Parameters = np.einsum('ij,bj -> bi', np.matmul(Eigen, Sigma), train_Parameters)
-train_Parameters = np.exp(train_Parameters)
-
-Obs = np.zeros((train_Parameters.shape[0], 256))
-Obs2 = np.zeros((train_Parameters.shape[0], 10))
-
-for i in range(train_Parameters.shape[0]):
-    sol = solver_function(train_Parameters, i)
-    Obs[i,:] = (sol).flatten()
-    Obs2[i,:] = (sol)[obs_indices].flatten()
+# for i in range(train_Parameters.shape[0]):
+#     sol = solver_function(train_Parameters, i)
+#     Obs[i,:] = (sol).flatten()
+#     Obs2[i,:] = (sol)[obs_indices].flatten()
     
-df_prior_mean = pd.DataFrame({'state': Obs.flatten()})
-df_prior_mean.to_csv('data/poisson_2D_state_full_train_d10000_n15_AC_1_1_pt5.csv', index=False)
+# df_prior_mean = pd.DataFrame({'state': Obs.flatten()})
+# df_prior_mean.to_csv('data/poisson_2D_state_full_train_d10000_n15_AC_1_1_pt5.csv', index=False)
 
-df_prior_mean = pd.DataFrame({'state_obs': Obs2.flatten()})
-df_prior_mean.to_csv('data/poisson_2D_state_obs_train_o10_d10000_n15_AC_1_1_pt5.csv', index=False)
+# df_prior_mean = pd.DataFrame({'state_obs': Obs2.flatten()})
+# df_prior_mean.to_csv('data/poisson_2D_state_obs_train_o10_d10000_n15_AC_1_1_pt5.csv', index=False)
 
 
-# ? TESTING DATA
-test_Parameters = np.einsum('ij,bj -> bi', np.matmul(Eigen, Sigma), test_Parameters)
-test_Parameters = np.exp(test_Parameters)
+# # ? TESTING DATA
+# test_Parameters = np.einsum('ij,bj -> bi', np.matmul(Eigen, Sigma), test_Parameters)
+# test_Parameters = np.exp(test_Parameters)
 
-Obs = np.zeros((test_Parameters.shape[0], 256))
-Obs2 = np.zeros((test_Parameters.shape[0], 10))
+# Obs = np.zeros((test_Parameters.shape[0], 256))
+# Obs2 = np.zeros((test_Parameters.shape[0], 10))
 
-for i in range(test_Parameters.shape[0]):
-    sol = solver_function(test_Parameters, i)
-    Obs[i,:] = (sol).flatten()
-    Obs2[i,:] = (sol)[obs_indices].flatten()
+# for i in range(test_Parameters.shape[0]):
+#     sol = solver_function(test_Parameters, i)
+#     Obs[i,:] = (sol).flatten()
+#     Obs2[i,:] = (sol)[obs_indices].flatten()
 
-df_prior_mean = pd.DataFrame({'state': Obs.flatten()})
-df_prior_mean.to_csv('data/poisson_2D_state_full_test_d500_n15_AC_1_1_pt5.csv', index=False)
+# df_prior_mean = pd.DataFrame({'state': Obs.flatten()})
+# df_prior_mean.to_csv('data/poisson_2D_state_full_test_d500_n15_AC_1_1_pt5.csv', index=False)
 
-df_prior_mean = pd.DataFrame({'state_obs': Obs2.flatten()})
-df_prior_mean.to_csv('data/poisson_2D_state_obs_test_o10_d500_n15_AC_1_1_pt5.csv', index=False)
+# df_prior_mean = pd.DataFrame({'state_obs': Obs2.flatten()})
+# df_prior_mean.to_csv('data/poisson_2D_state_obs_test_o10_d500_n15_AC_1_1_pt5.csv', index=False)
 
 
