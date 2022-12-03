@@ -1,0 +1,31 @@
+2022-12-01 10:21:59,656 INFO    MainThread:13842 [wandb_setup.py:_flush():68] Configure stats pid to 13842
+2022-12-01 10:21:59,656 INFO    MainThread:13842 [wandb_setup.py:_flush():68] Loading settings from /home/georx/.config/wandb/settings
+2022-12-01 10:21:59,656 INFO    MainThread:13842 [wandb_setup.py:_flush():68] Loading settings from /home/georx/torchfire/torchfire/demos/wandb/settings
+2022-12-01 10:21:59,656 INFO    MainThread:13842 [wandb_setup.py:_flush():68] Loading settings from environment variables: {'_require_service': 'True'}
+2022-12-01 10:21:59,656 INFO    MainThread:13842 [wandb_setup.py:_flush():68] Inferring run settings from compute environment: {'program_relpath': 'demos/TNet_heat_eq_V0.py', 'program': '/home/georx/torchfire/torchfire/demos/TNet_heat_eq_V0.py'}
+2022-12-01 10:21:59,656 INFO    MainThread:13842 [wandb_setup.py:_flush():68] Applying login settings: {'mode': 'offline'}
+2022-12-01 10:21:59,656 INFO    MainThread:13842 [wandb_init.py:_log_setup():476] Logging user logs to /home/georx/torchfire/torchfire/demos/wandb/offline-run-20221201_102159-2co2ja11/logs/debug.log
+2022-12-01 10:21:59,656 INFO    MainThread:13842 [wandb_init.py:_log_setup():477] Logging internal logs to /home/georx/torchfire/torchfire/demos/wandb/offline-run-20221201_102159-2co2ja11/logs/debug-internal.log
+2022-12-01 10:21:59,656 INFO    MainThread:13842 [wandb_init.py:init():516] calling init triggers
+2022-12-01 10:21:59,657 INFO    MainThread:13842 [wandb_init.py:init():519] wandb.init called with sweep_config: {}
+config: {}
+2022-12-01 10:21:59,657 INFO    MainThread:13842 [wandb_init.py:init():569] starting backend
+2022-12-01 10:21:59,657 INFO    MainThread:13842 [wandb_init.py:init():573] setting up manager
+2022-12-01 10:21:59,660 INFO    MainThread:13842 [backend.py:_multiprocessing_setup():102] multiprocessing start_methods=fork,spawn,forkserver, using: spawn
+2022-12-01 10:21:59,662 INFO    MainThread:13842 [wandb_init.py:init():580] backend started and connected
+2022-12-01 10:21:59,664 INFO    MainThread:13842 [wandb_init.py:init():658] updated telemetry
+2022-12-01 10:21:59,670 INFO    MainThread:13842 [wandb_init.py:init():728] starting run threads in backend
+2022-12-01 10:21:59,925 INFO    MainThread:13842 [wandb_run.py:_console_start():1980] atexit reg
+2022-12-01 10:21:59,925 INFO    MainThread:13842 [wandb_run.py:_redirect():1838] redirect: SettingsConsole.WRAP_RAW
+2022-12-01 10:21:59,925 INFO    MainThread:13842 [wandb_run.py:_redirect():1903] Wrapping output streams.
+2022-12-01 10:21:59,926 INFO    MainThread:13842 [wandb_run.py:_redirect():1925] Redirects installed.
+2022-12-01 10:21:59,926 INFO    MainThread:13842 [wandb_init.py:init():765] run started, returning control to user process
+2022-12-01 10:21:59,927 INFO    MainThread:13842 [wandb_config.py:__setitem__():148] config set problem = Heat_TorchFire - <bound method Run._config_callback of <wandb.sdk.wandb_run.Run object at 0x7fcb689068f0>>
+2022-12-01 10:21:59,927 INFO    MainThread:13842 [wandb_run.py:_config_callback():1160] config_cb problem Heat_TorchFire None
+2022-12-01 10:21:59,927 INFO    MainThread:13842 [wandb_config.py:__setitem__():148] config set batchsize = 100 - <bound method Run._config_callback of <wandb.sdk.wandb_run.Run object at 0x7fcb689068f0>>
+2022-12-01 10:21:59,927 INFO    MainThread:13842 [wandb_run.py:_config_callback():1160] config_cb batchsize 100 None
+2022-12-01 10:21:59,927 INFO    MainThread:13842 [wandb_config.py:__setitem__():148] config set learning_rate = 0.001 - <bound method Run._config_callback of <wandb.sdk.wandb_run.Run object at 0x7fcb689068f0>>
+2022-12-01 10:21:59,928 INFO    MainThread:13842 [wandb_run.py:_config_callback():1160] config_cb learning_rate 0.001 None
+2022-12-01 10:21:59,928 INFO    MainThread:13842 [wandb_config.py:__setitem__():148] config set database = 100 - <bound method Run._config_callback of <wandb.sdk.wandb_run.Run object at 0x7fcb689068f0>>
+2022-12-01 10:21:59,928 INFO    MainThread:13842 [wandb_run.py:_config_callback():1160] config_cb database 100 None
+2022-12-01 10:42:58,245 WARNING MsgRouterThr:13842 [router.py:message_loop():77] message_loop has been closed
