@@ -269,6 +269,11 @@ kappa_true = kappa_true.cpu().detach().numpy().astype(np.float64)
 
 # torch.mean(torch.linalg.vector_norm(torch.tensor(kappa_pred).to(device) - torch.tensor(kappa_true).to(device), dim=-1)**2 / torch.linalg.vector_norm(torch.tensor(kappa_true).to(device), dim=-1)**2)
 
+
+
+# ? PLEASE TRY VMIN VMAX FOR PLOT FUNCTION THERE!!!
+
+
 Cases = 4
 for sample in range(Cases):
     plot_u(kappa_true, kappa_pred, sample)
