@@ -94,8 +94,8 @@ Prematrix = torch.tensor(pre_mat_stiff_sparse.toarray()).to(device)
 load_f = torch.tensor(load_vector).to(device)
 
 
-#! 1.3 Firedrake and Fenics switch matrix
-Fenics_to_Fridrake_mat = torch.tensor(np.reshape(pd.read_csv('data/Fenics_to_Firedrake' + '.csv').to_numpy(), ((n+1)**2, (n+1)**2))).to(device)
+# ! 1.3 Firedrake and Fenics switch matrix
+Fenics_to_Fridrake_mat = torch.tensor(np.reshape(pd.read_csv('data/Fenics_to_Firedrake' + '.csv').to_numpy(), ((n + 1)**2, (n + 1)**2))).to(device)
 
 
 def Fenics_to_Fridrake(u):
@@ -108,7 +108,7 @@ def Fridrake_to_Fenics(u):
     return torch.einsum('ij, bi -> bj', Fenics_to_Fridrake_mat.float(), u.float())
 
 
-#! 1.4 Impose boundary trick
+# ! 1.4 Impose boundary trick
 Operator = np.zeros((210, 256))
 i = 0
 for j in free_index:
@@ -116,7 +116,7 @@ for j in free_index:
     i += 1
 Operator = torch.Tensor(Operator).to(device)
 
-#! 1.5 TorchFire Mesh definition
+# ! 1.5 TorchFire Mesh definition
 mesh = UnitSquareMesh(15, 15)
 V = FunctionSpace(mesh, "P", 1)
 bc = DirichletBC(V, 0, (1, 2, 3))
@@ -238,7 +238,7 @@ def train_loop(model, optimizer, z, u_train_true, load_f, functional, Total, Pyt
         # End_time = time.time()
         # Backpropagation_time2 = (Begin_time - End_time)
         # print(Backpropagation_time2)
-        #Residuals = model.FireDrake(u_train_pred, kappa, load_f)
+        # Residuals = model.FireDrake(u_train_pred, kappa, load_f)
 
         # This computes the residual loss given the tensors exp(kapp) and the neural network that generates the solution u_nn
         Physic_time = time.time()
@@ -297,12 +297,12 @@ def test_loop(model, z_test, u_test_true, functional):
         # test_u_acc += functional(u_test_pred, Fenics_to_Fridrake(u_test_true.squeeze())) / functional(u_test_pred*0, Fenics_to_Fridrake(u_test_true.squeeze()))
         for i in range(500):
             test_u_acc += functional(u_test_pred[i, :], Fenics_to_Fridrake(u_test_true.squeeze())[i, :]
-                                     ) / functional(u_test_pred[i, :]*0, Fenics_to_Fridrake(u_test_true.squeeze())[i, :])
+                                     ) / functional(u_test_pred[i, :] * 0, Fenics_to_Fridrake(u_test_true.squeeze())[i, :])
 
         # import pdb
         # pdb.set_trace()
 
-    return test_u_acc/500
+    return test_u_acc / 500
 
 
 # ! 3. Training process

@@ -18,7 +18,7 @@ device = torch.device("cpu")
 # writer = SummaryWriter()
 
 # %%
-#! 0. Initial parameters and training parameters
+# ! 0. Initial parameters and training parameters
 num_train2 = 10000
 num_train = 600
 num_test = 500
@@ -29,7 +29,7 @@ batch_size = 200
 epochs = 1000
 neurons = 1000
 
-#! 1. Loading data by pandas
+# ! 1. Loading data by pandas
 train_input_file_name = 'poisson_2D_state_full_train_d' + str(num_train2) + '_n15_AC_1_1_pt5'
 train_output_file_name = 'poisson_2D_parameter_train_d' + str(num_train2) + '_n15_AC_1_1_pt5'
 test_input_file_name = 'poisson_2D_state_full_test_d' + str(num_test) + '_n15_AC_1_1_pt5'
@@ -59,7 +59,7 @@ print(test_Observations_synthetic.shape)
 print(test_Parameters.shape)
 
 # %% [markdown]
-#! 1.2 Loading eigenvalues, eigenvectors
+# ! 1.2 Loading eigenvalues, eigenvectors
 # ? 1.2 Load Eigenvalue, Eigenvectors, observed indices, prematrices
 # ? Physical model information
 n = 15
@@ -170,8 +170,8 @@ n = 15
 mesh = UnitSquareMesh(n, n)
 V = FunctionSpace(mesh, "P", 1)
 
-#! 1.3 Firedrake and Fenics switch matrix
-Fenics_to_Fridrake_mat = torch.tensor(np.reshape(pd.read_csv('data/Fenics_to_Firedrake' + '.csv').to_numpy(), ((n+1)**2, (n+1)**2))).to(device)
+# ! 1.3 Firedrake and Fenics switch matrix
+Fenics_to_Fridrake_mat = torch.tensor(np.reshape(pd.read_csv('data/Fenics_to_Firedrake' + '.csv').to_numpy(), ((n + 1)**2, (n + 1)**2))).to(device)
 
 
 def Fenics_to_Fridrake(u):

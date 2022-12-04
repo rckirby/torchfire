@@ -5,5 +5,5 @@ src/torchfire/__pycache__/__init__.cpython-310.pyc
 src/torchfire/__pycache__/torchfire.cpython-310.pyc
 
 demos/VisualizingResults/
-demos/torchfire.py
+demos/*/torchfire.py
 

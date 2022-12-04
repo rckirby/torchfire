@@ -207,7 +207,7 @@ res = fd_to_torch(assemble_firedrake, templates, "residualTorch")
 res_appply = res.apply
 
 kappa_ = torch.tensor(fenics_to_Firedrake(train_Parameters[sample,:])).to(device)
-un_ = torch.tensor(solutions).to(device)
+un_ = torch.tensor(fenics_to_Firedrake(solutions)).to(device)
 res_ = res_appply(un_, kappa_)
 print(res_)
 print(torch.nn.MSELoss()(res_, torch.zeros_like(res_)))
@@ -236,7 +236,7 @@ print(torch.nn.MSELoss()(res_, torch.zeros_like(res_)))
 # plt.savefig("Firedrake_solution.png", dpi=150)
 # plt.close()
 
-# v1 = train_Observations_synthetic[sample,:]
+v1 = train_Observations_synthetic[sample,:]
 
 # plot saving figure    
 # fig = plt.figure(figsize=(10, 10))
@@ -244,7 +244,7 @@ print(torch.nn.MSELoss()(res_, torch.zeros_like(res_)))
 # plt.savefig("Fenics_solution.png", dpi=150)
 # plt.close()
 
-# print('Fenics Firedrake relative error test: ', np.linalg.norm(v1 - solutions) /np.linalg.norm(solutions) )
+print('Fenics Firedrake relative error test: ', np.linalg.norm(v1 - solutions) /np.linalg.norm(solutions) )
 
 # # ! Regenerating data from Firedrake solvers
 # # ? TRAINING DATA

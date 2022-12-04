@@ -22,13 +22,13 @@ device = torch.device('cpu')
 # %%
 # ! 0. Initial parameters and training parameters
 num_train2 = 10000
-num_train = 10
+num_train = 600
 num_test = 500
 repeat_fac = 1  # Keep it 1 for now!
 # %%
-learning_rate = 2e-3
-batch_size = num_train * repeat_fac
-epochs = 5000
+learning_rate = 1e-2
+batch_size = 200
+epochs = 2000
 neurons = 1000
 
 # ! 0.1 Using Wandb to upload the approach
@@ -144,7 +144,7 @@ def assemble_firedrake(u, expkappa):
 
 res = fd_to_torch(assemble_firedrake, templates, "residualTorch")
 res_appply = res.apply
-    
+
 # ! 2. Building neural network
 
 
@@ -269,15 +269,9 @@ def test_loop(model, z_test, u_test_true, functional):
     """
     with torch.no_grad():
         u_test_pred, _ = model(z_test)
-        test_u_acc = 0
-        # test_u_acc += functional(u_test_pred, Fenics_to_Fridrake(u_test_true.squeeze())) / functional(u_test_pred*0, Fenics_to_Fridrake(u_test_true.squeeze()))
-        for i in range(500):
-            test_u_acc += functional(u_test_pred[i, :], Fenics_to_Fridrake(u_test_true.squeeze())[i, :]) / functional(u_test_pred[i, :] * 0, Fenics_to_Fridrake(u_test_true.squeeze())[i, :])
+        test_u_acc = torch.mean(torch.linalg.vector_norm(u_test_pred - Fenics_to_Fridrake(u_test_true.squeeze()), dim=-1)**2 / torch.linalg.vector_norm(Fenics_to_Fridrake(u_test_true.squeeze()), dim=-1)**2)
 
-        # import pdb
-        # pdb.set_trace()
-
-    return test_u_acc / 500
+    return test_u_acc
 
 
 # ! 3. Training process
