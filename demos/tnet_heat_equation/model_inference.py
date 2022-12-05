@@ -1,3 +1,4 @@
+import matplotlib
 from firedrake import *
 import firedrake as fd
 import matplotlib.pyplot as plt
@@ -239,7 +240,8 @@ def plot_u(u, u_pred, i):
     plt.subplot(121)
     ax = plt.gca()
     ax.set_aspect("equal")
-    l = tricontourf(from_numpy(np.reshape(u[i, :], (256, 1)), fd.Function(V)), axes=ax)
+    levels = np.arange(-1,1,0.1)
+    l = tricontourf(from_numpy(np.reshape(u[i, :], (256, 1)), fd.Function(V)), axes=ax, levels=levels)
     # triplot(mesh, axes=ax, interior_kw=dict(alpha=0.05))
     plt.colorbar(l, fraction=0.046, pad=0.04)
     plt.title('True ' + str(i) + 'th Test Solution by Firedrake')
@@ -247,12 +249,12 @@ def plot_u(u, u_pred, i):
     plt.subplot(122)
     ax = plt.gca()
     ax.set_aspect("equal")
-    l = tricontourf(from_numpy(np.reshape(u_pred[i, :], (256, 1)), fd.Function(V)), axes=ax)
+    l = tricontourf(from_numpy(np.reshape(u_pred[i, :], (256, 1)), fd.Function(V)), axes=ax, levels=levels)
     # triplot(mesh, axes=ax, interior_kw=dict(alpha=0.05))
     plt.colorbar(l, fraction=0.046, pad=0.04)
     plt.title('Predicted ' + str(i) + 'th Solution by nFEM')
 
-    plt.savefig("results/predicted_solutions/Pred_" + str(i) + ".png", dpi=600, bbox_inches='tight')
+    plt.savefig("results/predicted_solutions/pred_" + str(i) + ".png", dpi=600, bbox_inches='tight')
     plt.close()
 
 
@@ -269,20 +271,14 @@ kappa_true = kappa_true.cpu().detach().numpy().astype(np.float64)
 
 # torch.mean(torch.linalg.vector_norm(torch.tensor(kappa_pred).to(device) - torch.tensor(kappa_true).to(device), dim=-1)**2 / torch.linalg.vector_norm(torch.tensor(kappa_true).to(device), dim=-1)**2)
 
-
-
-# ? PLEASE TRY VMIN VMAX FOR PLOT FUNCTION THERE!!!
-
-
-Cases = 4
+Cases = 40
 for sample in range(Cases):
     plot_u(kappa_true, kappa_pred, sample)
 
-
-# import imageio.v2
-# image_list = []
-# for step in range(Cases):
-#     image_list.append(imageio.v2.imread("results/predicted_solutions/pred_" + str(step) + ".png"))
-# imageio.mimwrite('results/animations.gif', image_list, duration=0.5)
+import imageio.v2
+image_list = []
+for step in range(Cases):
+     image_list.append(imageio.v2.imread("results/predicted_solutions/pred_" + str(step) + ".png"))
+imageio.mimwrite('results/animations.gif', image_list, duration=0.5)
 # # imageio.mimwrite('animated_burger_sample_' + str(sample) + '.gif', image_list, fps = 60)
 
