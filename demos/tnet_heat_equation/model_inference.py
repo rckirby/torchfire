@@ -4,6 +4,7 @@ import firedrake as fd
 import matplotlib.pyplot as plt
 from fecr import from_numpy, to_numpy
 import numpy as np
+import math
 import pandas as pd
 
 import firedrake
@@ -140,7 +141,6 @@ def solve_firedrake(exp_u):
     solve(F == 0, y, bcs=bc)
     return y
 
-
 # assemble_firedrake just takes a pair of functions now
 templates = (firedrake.Function(V),)
 
@@ -236,23 +236,25 @@ def Fridrake_to_Fenics(u):
 def plot_u(u, u_pred, i):
     # plot saving figure
     plt.figure(figsize=(13, 6))
+    max_u = math.ceil(max(np.max(u[i, :]), np.max(u_pred[i, :]))*10+1)/10
+    min_u = math.floor(min(np.min(u[i, :]), np.min(u_pred[i, :]))*10-1)/10
+    levels = np.arange(min_u,max_u,0.1)
     
     plt.subplot(121)
     ax = plt.gca()
     ax.set_aspect("equal")
-    levels = np.arange(-1,1,0.1)
     l = tricontourf(from_numpy(np.reshape(u[i, :], (256, 1)), fd.Function(V)), axes=ax, levels=levels)
-    # triplot(mesh, axes=ax, interior_kw=dict(alpha=0.05))
+    triplot(mesh, axes=ax, interior_kw=dict(alpha=0.05))
     plt.colorbar(l, fraction=0.046, pad=0.04)
-    plt.title('True ' + str(i) + 'th Test Solution by Firedrake')
+    plt.title('True ' + str(i) + 'th conductivity field ' + r'$\kappa$')
 
     plt.subplot(122)
     ax = plt.gca()
     ax.set_aspect("equal")
     l = tricontourf(from_numpy(np.reshape(u_pred[i, :], (256, 1)), fd.Function(V)), axes=ax, levels=levels)
-    # triplot(mesh, axes=ax, interior_kw=dict(alpha=0.05))
+    triplot(mesh, axes=ax, interior_kw=dict(alpha=0.05))
     plt.colorbar(l, fraction=0.046, pad=0.04)
-    plt.title('Predicted ' + str(i) + 'th Solution by nFEM')
+    plt.title('Predicted ' + str(i) + 'th conductivity field ' + r'$\kappa$ by TNet-TorchFire')
 
     plt.savefig("results/predicted_solutions/pred_" + str(i) + ".png", dpi=600, bbox_inches='tight')
     plt.close()
@@ -261,10 +263,11 @@ def plot_u(u, u_pred, i):
 # Load
 model_best = torch.load('results/best_model.pt')
 z_pred, kappa_pred = model_best(test_Observations)
+z_pred = z_pred
 z_true = test_Parameters
 
-kappa_pred = torch.einsum('ij,bj -> bi', torch.matmul(Eigen, Sigma).float(), z_pred.float())
-kappa_true = torch.einsum('ij,bj -> bi', torch.matmul(Eigen, Sigma).float(), z_true.float())
+kappa_pred = Fenics_to_Fridrake(torch.einsum('ij,bj -> bi', torch.matmul(Eigen, Sigma).float(), z_pred.float()))
+kappa_true = Fenics_to_Fridrake(torch.einsum('ij,bj -> bi', torch.matmul(Eigen, Sigma).float(), z_true.float()))
 
 kappa_pred = kappa_pred.cpu().detach().numpy().astype(np.float64)
 kappa_true = kappa_true.cpu().detach().numpy().astype(np.float64)

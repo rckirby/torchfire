@@ -3,6 +3,7 @@ import firedrake as fd
 import matplotlib.pyplot as plt
 from fecr import from_numpy, to_numpy
 import numpy as np
+import math
 import pandas as pd
 
 import torch
@@ -188,18 +189,28 @@ def plot_u(u, u_pred, kappa, i):
     # plot saving figure
     plt.figure(figsize=(17, 6))
 
+    max_kappa = math.ceil(np.max(kappa[i, :])*10+1)/10
+    min_kappa = math.floor(np.min(kappa[i, :])*10-1)/10
+    kappa_levels = np.arange(min_kappa, max_kappa, 0.1)
+    
+    max_u = math.ceil(max(np.max(u[i, :]), np.max(u_pred[i, :]))*10+1)/10
+    levels = np.arange(0,max_u,0.1)
+    
+    
     plt.subplot(131)
     ax = plt.gca()
     ax.set_aspect("equal")
-    l = tricontourf(from_numpy(np.reshape(kappa[i, :], (256, 1)), fd.Function(V)), axes=ax)
+    l = tricontourf(from_numpy(np.reshape(kappa[i, :], (256, 1)), fd.Function(V)), axes=ax, levels=kappa_levels)
     triplot(mesh, axes=ax, interior_kw=dict(alpha=0.05))
     plt.colorbar(l, fraction=0.046, pad=0.04)
     plt.title(str(i) + 'th conductivity field ' + r'$\kappa$')
 
+
+    # Plotting the contour of the solution.
     plt.subplot(132)
     ax = plt.gca()
     ax.set_aspect("equal")
-    l = tricontourf(from_numpy(np.reshape(u[i, :], (256, 1)), fd.Function(V)), axes=ax)
+    l = tricontourf(from_numpy(np.reshape(u[i, :], (256, 1)), fd.Function(V)), axes=ax, levels=levels)
     triplot(mesh, axes=ax, interior_kw=dict(alpha=0.05))
     plt.colorbar(l, fraction=0.046, pad=0.04)
     plt.title('True ' + str(i) + 'th Test Solution by Firedrake')
@@ -207,11 +218,13 @@ def plot_u(u, u_pred, kappa, i):
     plt.subplot(133)
     ax = plt.gca()
     ax.set_aspect("equal")
-    l = tricontourf(from_numpy(np.reshape(u_pred[i, :], (256, 1)), fd.Function(V)), axes=ax)
+    l = tricontourf(from_numpy(np.reshape(u_pred[i, :], (256, 1)), fd.Function(V)), axes=ax, levels=levels)
     triplot(mesh, axes=ax, interior_kw=dict(alpha=0.05))
     plt.colorbar(l, fraction=0.046, pad=0.04)
     plt.title('Predicted ' + str(i) + 'th Solution by nFEM')
-
+        
+    # import pdb; pdb.set_trace()
+        
     plt.savefig("results/predicted_solutions/pred_" + str(i) + ".png", dpi=600, bbox_inches='tight')
     plt.close()
 
