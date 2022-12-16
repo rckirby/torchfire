@@ -19,13 +19,12 @@ num_test = 500
 
 learning_rate = 1e-2
 batch_size = 200
-epochs = 1000
+epochs = 1
 neurons = 1000
 
 # STEP 1. Loading data from .csv files
 def load_data(name, target_shape=(-1,)):
     return torch.tensor(np.reshape(pd.read_csv(name).to_numpy(), target_shape)).to(device)
-
 
 # 1.1 Loading train and test data
 train_Observations_synthetic = load_data('data/Training_Solutions_u.csv', (num_train_ultimate, -1))
@@ -107,7 +106,7 @@ class NeuralNetwork(nn.Module):
         predicted solutions `u` and corresponding `exp(kappa)`
 
         Args:
-            u (tensor): predicted solutions of neural network
+            u (tensor): predicted solutions by neural network
             kappa (tensor): the corresponding kappa to predicted solutions
 
         Returns:
@@ -132,16 +131,6 @@ model = NeuralNetwork().to(device)
 
 # STEP 4. Training loss functions
 def train_loop(model, optimizer, z):
-    """This is training loop, optimizing for neural network parameters
-
-    Args:
-        model (Pytorch functional): the neural network
-        optimizer (Pytorch functional): ADAM optimizer
-        z (tensor): vectors z
-
-    Returns:
-        loss_train (scalar): the sum of Residuals
-    """
     loss_train = 0
     for batch in range(int(num_train / batch_size)):
         u_train_pred, kappa = model(z[(batch) * batch_size:(batch + 1) * batch_size, :])
@@ -159,16 +148,7 @@ def train_loop(model, optimizer, z):
 
 
 def test_loop(model, z_test, u_test_true):
-    """This is test functions
-
-    Args:
-        model (Pytorch model): model is forward function in network class (default)
-        z_test (torch tensor): vectors z (n_test x number of eigen modes)
-        u_test_true (torch tensor): true solutions w.r.t. vectors z
-
-    Returns:
-        scalar: the mean square error of predicted solutions
-    """
+    
     with torch.no_grad():
         u_test_pred, _ = model(z_test)
         test_u_acc = torch.mean(torch.linalg.vector_norm(u_test_pred - u_test_true, dim=-1)**2 / torch.linalg.vector_norm(u_test_true, dim=-1)**2)
@@ -187,13 +167,13 @@ def numpy_formatter(np_array):
 
 TRAIN_LOSS, TEST_ACC = [], []
 for t in range(epochs):
-    print(f"Epoch {t + 1}\n-------------------------------")
     train_loss = train_loop(model, optimizer, train_Parameters)
     test_u_acc = test_loop(model, test_Parameters, test_Observations_synthetic)
 
     str_test_u_acc = numpy_formatter(test_u_acc.cpu().detach().numpy())
     str_train_loss = numpy_formatter(train_loss.cpu().detach().numpy()[0])
-
+    
+    print(f"Epoch {t + 1}\n-------------------------------")
     print(f"Test Acc:  {str_test_u_acc}  Train loss {str_train_loss} \n")
 
     # Save the training loss, testing accuracies and the neural network model for inference

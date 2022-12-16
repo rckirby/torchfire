@@ -28,7 +28,7 @@ neurons = 5000
 alpha = 8e3 # this value is the best for noise level of 0.005
 noise_level = 0.005
 
-# 1. Loading data by pandas
+# STEP 1. Loading data from .csv files
 def load_data(name, target_shape = (-1,)):
         return torch.tensor(np.reshape(pd.read_csv(name).to_numpy(), target_shape)).to(device)
 
@@ -88,18 +88,18 @@ class NeuralNetwork(nn.Module):
         torch.nn.init.normal_(self.Neuralmap2.weight, mean=0.0, std=.02)
         torch.nn.init.normal_(self.Neuralmap2.bias, mean=0.0, std=.000)
 
-    def forward(self, u):
+    def forward(self, train_observations):
         """Forward pass before using FireDrake
 
         Args:
-            u (tensor): the train observable vector u_obs
+            train_observations (tensor): Sparse Observations
 
         Returns:
-            z (tensor): parameter z vector
+            z (tensor): predicted parameter z vector by neural network
         """
 
         # Mapping vectors u_obs to parameters z
-        z_pred = self.Neuralmap2(self.Relu(self.Neuralmap1(u.float())))
+        z_pred = self.Neuralmap2(self.Relu(self.Neuralmap1(train_observations.float())))
 
         # generate kappa from vectors z
         kappa = torch.einsum('ij,bj -> bi', torch.matmul(Eigen, Sigma).float(), z_pred.float())
@@ -112,10 +112,11 @@ class NeuralNetwork(nn.Module):
         predicted solutions `exp(u)`
 
         Args:
-            exp_u (tensor): predicted solutions of neural network
+            kappa (tensor): predicted parameters obtained by neural network
+            train_observations (tensor): Sparse Observations
 
         Returns:
-             torch.Tensor: the solutions for each pde in the batch
+             scalar : mean square error between reproduced observations and sparse true observations
         """
 
         loss_mc = torch.zeros(1, device=device)
