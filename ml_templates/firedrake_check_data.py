@@ -86,27 +86,6 @@ pd.DataFrame(Transform.flatten()).to_csv(Path('data/Fenics_to_Firedrake.csv'), i
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-# ? PLEASE TAKE A LOOK FROM HERE JODGE
-
-
-
-
-
-
-
-
 #! 1. Loading data by pandas
 num_train2 = 10000
 num_train = 600
@@ -211,22 +190,6 @@ un_ = torch.tensor(fenics_to_Firedrake(solutions)).to(device)
 res_ = res_appply(un_, kappa_)
 print(res_)
 print(torch.nn.MSELoss()(res_, torch.zeros_like(res_)))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
