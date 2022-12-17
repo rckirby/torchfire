@@ -1,4 +1,3 @@
-import math
 import imageio.v2
 import firedrake as fd
 import matplotlib.pyplot as plt
@@ -102,8 +101,8 @@ model = NeuralNetwork().to(device)
 # 4. Plotting function
 def plot_u(u, u_pred, i):
     plt.figure(figsize=(13, 6))
-    max_u = math.ceil(max(np.max(u[i, :]), np.max(u_pred[i, :])) * 10 + 1) / 10
-    min_u = math.floor(min(np.min(u[i, :]), np.min(u_pred[i, :])) * 10 - 1) / 10
+    max_u = np.ceil(max(np.max(u[i, :]), np.max(u_pred[i, :])) * 10 + 1) / 10
+    min_u = np.floor(min(np.min(u[i, :]), np.min(u_pred[i, :])) * 10 - 1) / 10
     levels = np.arange(min_u, max_u, 0.1)
 
     plt.subplot(121)

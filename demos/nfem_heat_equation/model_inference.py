@@ -1,4 +1,3 @@
-import math
 import imageio.v2
 import firedrake as fd
 import matplotlib.pyplot as plt
@@ -99,11 +98,11 @@ model = NeuralNetwork().to(device)
 def plot_u(u, u_pred, kappa, i):
     plt.figure(figsize=(17, 6))
 
-    max_kappa = math.ceil(np.max(kappa[i, :]) * 10 + 1) / 10
-    min_kappa = math.floor(np.min(kappa[i, :]) * 10 - 1) / 10
+    max_kappa = np.ceil(np.max(kappa[i, :]) * 10 + 1) / 10
+    min_kappa = np.floor(np.min(kappa[i, :]) * 10 - 1) / 10
     kappa_levels = np.arange(min_kappa, max_kappa, 0.1)
 
-    max_u = math.ceil(max(np.max(u[i, :]), np.max(u_pred[i, :])) * 10 + 2) / 10
+    max_u = np.ceil(max(np.max(u[i, :]), np.max(u_pred[i, :])) * 10 + 2) / 10
     levels = np.arange(0, max_u, 0.3)
 
     plt.subplot(131)
