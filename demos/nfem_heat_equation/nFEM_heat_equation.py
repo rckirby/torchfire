@@ -1,14 +1,13 @@
 import firedrake
-from firedrake import (DirichletBC, FunctionSpace, SpatialCoordinate, Constant,
-                       TestFunction, UnitSquareMesh, assemble, dx, grad, inner)
-
-from torchfire import fd_to_torch
-from path import Path  # [PLEASE PROVIDE A BETTER WAY TO SAVE FILE TO AVOID USING THIS PACKAGE]
 import numpy as np
 import pandas as pd
-
 import torch
+from firedrake import (DirichletBC, FunctionSpace, Constant,
+                       TestFunction, UnitSquareMesh, assemble, dx, grad, inner)
+from path import Path  # [PLEASE PROVIDE A BETTER WAY TO SAVE FILE TO AVOID USING THIS PACKAGE]
 from torch import nn
+
+from torchfire import fd_to_torch
 
 device = torch.device('cpu')  # At the moment, we support CPU computation only.
 
@@ -22,9 +21,11 @@ batch_size = 200
 epochs = 1
 neurons = 1000
 
+
 # STEP 1. Loading data from .csv files
 def load_data(name, target_shape=(-1,)):
     return torch.tensor(np.reshape(pd.read_csv(name).to_numpy(), target_shape)).to(device)
+
 
 # 1.1 Loading train and test data
 train_Observations_synthetic = load_data('data/Training_Solutions_u.csv', (num_train_ultimate, -1))
@@ -67,6 +68,7 @@ def assemble_firedrake(u, exp_kappa):
 
 
 res_appply = fd_to_torch(assemble_firedrake, templates, "residualTorch").apply
+
 
 # STEP 3. Building neural network
 class NeuralNetwork(nn.Module):
@@ -129,6 +131,7 @@ class NeuralNetwork(nn.Module):
 
 model = NeuralNetwork().to(device)
 
+
 # STEP 4. Training loss functions
 def train_loop(model, optimizer, z):
     loss_train = 0
@@ -148,10 +151,11 @@ def train_loop(model, optimizer, z):
 
 
 def test_loop(model, z_test, u_test_true):
-    
     with torch.no_grad():
         u_test_pred, _ = model(z_test)
-        test_u_acc = torch.mean(torch.linalg.vector_norm(u_test_pred - u_test_true, dim=-1)**2 / torch.linalg.vector_norm(u_test_true, dim=-1)**2)
+        test_u_acc = torch.mean(
+            torch.linalg.vector_norm(u_test_pred - u_test_true, dim=-1) ** 2 / torch.linalg.vector_norm(u_test_true,
+                                                                                                        dim=-1) ** 2)
 
     return test_u_acc
 
@@ -172,7 +176,7 @@ for t in range(epochs):
 
     str_test_u_acc = numpy_formatter(test_u_acc.cpu().detach().numpy())
     str_train_loss = numpy_formatter(train_loss.cpu().detach().numpy()[0])
-    
+
     print(f"Epoch {t + 1}\n-------------------------------")
     print(f"Test Acc:  {str_test_u_acc}  Train loss {str_train_loss} \n")
 

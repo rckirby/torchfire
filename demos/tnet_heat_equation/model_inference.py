@@ -1,11 +1,11 @@
+import math
+
 import firedrake as fd
 import matplotlib.pyplot as plt
-from fecr import from_numpy
 import numpy as np
-import math
 import pandas as pd
-
 import torch
+from fecr import from_numpy
 from torch import nn
 
 device = torch.device("cpu")
@@ -24,19 +24,21 @@ batch_size = num_train
 epochs = 1
 neurons = 5000
 
-alpha = 8e3 # this value is the best for noise level of 0.005
+alpha = 8e3  # this value is the best for noise level of 0.005
 noise_level = 0.005
 
+
 # 1. Loading data by pandas
-def load_data(name, target_shape = (-1,)):
-        return torch.tensor(np.reshape(pd.read_csv(name).to_numpy(), target_shape)).to(device)
+def load_data(name, target_shape=(-1,)):
+    return torch.tensor(np.reshape(pd.read_csv(name).to_numpy(), target_shape)).to(device)
+
 
 # 1.1 Loading train and test data
 train_Observations_synthetic = load_data('data/Training_Sparse_Solutions_u.csv', (num_train_ultimate, -1))
-train_Observations_synthetic = train_Observations_synthetic[:num_train, :].repeat(repeat_fac,1)
+train_Observations_synthetic = train_Observations_synthetic[:num_train, :].repeat(repeat_fac, 1)
 
 train_Parameters = load_data('data/Training_KL_Expansion_coefficients.csv', (num_train_ultimate, -1))
-train_Parameters = train_Parameters[:num_train, :].repeat(repeat_fac,1)
+train_Parameters = train_Parameters[:num_train, :].repeat(repeat_fac, 1)
 
 test_Observations_synthetic = load_data('data/Test_Sparse_Solutions_u.csv', (num_test, -1))
 test_Parameters = load_data('data/Test_KL_Expansion_coefficients.csv', (num_test, -1))
@@ -60,6 +62,7 @@ Sigma = load_data('data/Eigen_value_data.csv', (num_truncated_series, num_trunca
 # 2. Physics Handler
 mesh = fd.UnitSquareMesh(nx, ny)
 V = fd.FunctionSpace(mesh, "P", 1)
+
 
 # STEP 3. Building neural network
 class NeuralNetwork(nn.Module):
@@ -92,16 +95,17 @@ class NeuralNetwork(nn.Module):
 
         return z_pred, kappa
 
+
 model = NeuralNetwork().to(device)
+
 
 # 4. Plotting function
 def plot_u(u, u_pred, i):
-
     plt.figure(figsize=(13, 6))
-    max_u = math.ceil(max(np.max(u[i, :]), np.max(u_pred[i, :]))*10+1)/10
-    min_u = math.floor(min(np.min(u[i, :]), np.min(u_pred[i, :]))*10-1)/10
-    levels = np.arange(min_u,max_u,0.1)
-    
+    max_u = math.ceil(max(np.max(u[i, :]), np.max(u_pred[i, :])) * 10 + 1) / 10
+    min_u = math.floor(min(np.min(u[i, :]), np.min(u_pred[i, :])) * 10 - 1) / 10
+    levels = np.arange(min_u, max_u, 0.1)
+
     plt.subplot(121)
     ax = plt.gca()
     ax.set_aspect("equal")
@@ -143,4 +147,3 @@ for sample in range(Cases):
 #      image_list.append(imageio.v2.imread("results/predicted_solutions/pred_" + str(step) + ".png"))
 # imageio.mimwrite('results/animations.gif', image_list, duration=0.5)
 # imageio.mimwrite('animated_burger_sample_' + str(sample) + '.gif', image_list, fps = 60)
-

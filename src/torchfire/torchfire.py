@@ -1,9 +1,6 @@
-import torch
-import firedrake
 import firedrake_adjoint  # noqa
 import numpy as np
-import ufl
-
+import torch
 from fecr import evaluate_primal, evaluate_pullback
 
 
@@ -18,7 +15,7 @@ def fd_to_torch(fd_callable, templates, classname):
             fd_callable, templates, *np_inputs)
         ctx.save_for_backward(*inputs)
         ctx.stuff = (np_output, fd_output, fd_input, tape)
-        output = torch.tensor( np_output).to(device)
+        output = torch.tensor(np_output).to(device)
         return output
 
     def backward(ctx, grad_output):
@@ -26,10 +23,10 @@ def fd_to_torch(fd_callable, templates, classname):
         device = inputs[0].device
         np_output, fd_output, fd_input, tape = ctx.stuff
 
-        if len( list(grad_output.size())) > 0:
+        if len(list(grad_output.size())) > 0:
             g = grad_output.cpu().detach().numpy().astype(np.float64)
             vjp_out = evaluate_pullback(fd_output, fd_input, tape, g)
-            t_output = [ torch.tensor(t).to(device) for t in vjp_out]
+            t_output = [torch.tensor(t).to(device) for t in vjp_out]
         else:
             g = np.ones_like(grad_output)
             vjp_out = evaluate_pullback(fd_output, fd_input, tape, g)
