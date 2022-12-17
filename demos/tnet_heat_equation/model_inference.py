@@ -1,5 +1,5 @@
 import math
-
+import imageio.v2
 import firedrake as fd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -141,9 +141,7 @@ for sample in range(Cases):
     plot_u(kappa_true, kappa_pred, sample)
 
 # 5. Animation of different test samples
-# import imageio.v2
-# image_list = []
-# for step in range(Cases):
-#      image_list.append(imageio.v2.imread("results/predicted_solutions/pred_" + str(step) + ".png"))
-# imageio.mimwrite('results/animations.gif', image_list, duration=0.5)
-# imageio.mimwrite('animated_burger_sample_' + str(sample) + '.gif', image_list, fps = 60)
+image_list = []
+for step in range(Cases):
+    image_list.append(imageio.v2.imread("results/predicted_solutions/pred_" + str(step) + ".png"))
+imageio.mimwrite('results/animations.gif', image_list, duration=0.5)

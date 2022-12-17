@@ -4,7 +4,7 @@ import pandas as pd
 import torch
 from firedrake import (DirichletBC, FunctionSpace, Constant,
                        TestFunction, UnitSquareMesh, assemble, dx, grad, inner)
-from path import Path  # [PLEASE PROVIDE A BETTER WAY TO SAVE FILE TO AVOID USING THIS PACKAGE]
+from path import Path
 from torch import nn
 
 from torchfire import fd_to_torch
