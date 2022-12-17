@@ -1,10 +1,9 @@
-import firedrake
+import firedrake as fd
 import numpy as np
 import pandas as pd
 import torch
 from firedrake import (DirichletBC, FunctionSpace, Constant,
                        TestFunction, UnitSquareMesh, assemble, dx, grad, inner)
-from path import Path
 from torch import nn
 
 from torchfire import fd_to_torch
@@ -58,7 +57,7 @@ Operator = torch.Tensor(Operator).to(device)
 mesh = UnitSquareMesh(15, 15)
 V = FunctionSpace(mesh, "P", 1)
 bc = DirichletBC(V, 0, (1, 2, 3))
-templates = (firedrake.Function(V), firedrake.Function(V))
+templates = (fd.Function(V), fd.Function(V))
 
 
 def assemble_firedrake(u, exp_kappa):
@@ -81,7 +80,7 @@ class NeuralNetwork(nn.Module):
         torch.nn.init.normal_(self.Neuralmap2.weight, mean=0.0, std=.01)
 
     def forward(self, z):
-        """Forward pass before using FireDrake
+        """Forward pass before using Firedrake
 
         Args:
             z (tensor): the train vectors z
@@ -189,8 +188,8 @@ for t in range(epochs):
     TRAIN_LOSS.append(train_loss.cpu().detach().numpy())
     TEST_ACC.append(test_u_acc.cpu().detach().numpy())
 
-# Step 6: Saving to the file
-pd.DataFrame(np.asarray(TRAIN_LOSS)).to_csv(Path('results/train_loss.csv'), index=False)
-pd.DataFrame(np.asarray(TEST_ACC)).to_csv(Path('results/test_acc.csv'), index=False)
+# STEP 6: Saving to the file
+pd.DataFrame(np.asarray(TRAIN_LOSS)).to_csv('results/train_loss.csv', index=False)
+pd.DataFrame(np.asarray(TEST_ACC)).to_csv('results/test_acc.csv', index=False)
 
 print("Done!")

@@ -1,3 +1,4 @@
+# This is where the magic happens
 import firedrake_adjoint  # noqa
 import numpy as np
 import torch
@@ -6,7 +7,14 @@ from fecr import evaluate_primal, evaluate_pullback
 
 def fd_to_torch(fd_callable, templates, classname):
     """Creates a subclass of torch.autograd.Function implementing
-    the static forward and backward methods in terms of fecr."""
+    the static forward and backward methods in terms of fecr.
+    Args:
+        fd_callable: Firedrake function to be executed during the forward pass
+        templates: Templates for converting arrays to Firedrake types
+        classname: String with the class' name
+    Returns:
+        subclass of torch.autograd.Function with methods `forward` and `backward`
+    """
 
     def forward(ctx, *inputs):
         device = inputs[0].device

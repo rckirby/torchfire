@@ -77,7 +77,7 @@ class NeuralNetwork(nn.Module):
         torch.nn.init.normal_(self.Neuralmap2.bias, mean=0.0, std=.000)
 
     def forward(self, u):
-        """Forward pass before using FireDrake
+        """Forward pass before using Firedrake
 
         Args:
             u (tensor): the train observable vector u_obs

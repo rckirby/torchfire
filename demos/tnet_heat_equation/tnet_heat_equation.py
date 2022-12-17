@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import firedrake
 import numpy as np
 import pandas as pd
@@ -95,7 +93,7 @@ class NeuralNetwork(nn.Module):
         torch.nn.init.normal_(self.Neuralmap2.bias, mean=0.0, std=.000)
 
     def forward(self, train_observations):
-        """Forward pass before using FireDrake
+        """Forward pass before using Firedrake
 
         Args:
             train_observations (tensor): Sparse Observations
@@ -196,8 +194,8 @@ for t in range(epochs):
     TRAIN_LOSS.append(train_loss.cpu().detach().numpy())
     TEST_ACC.append(test_u_acc.cpu().detach().numpy())
 
-# Step 6: Saving to the file
-pd.DataFrame(np.asarray(TRAIN_LOSS)).to_csv(Path('results/train_loss.csv'), index=False)
-pd.DataFrame(np.asarray(TEST_ACC)).to_csv(Path('results/test_acc.csv'), index=False)
+# STEP 6: Saving to the file
+pd.DataFrame(np.asarray(TRAIN_LOSS)).to_csv('results/train_loss.csv', index=False)
+pd.DataFrame(np.asarray(TEST_ACC)).to_csv('results/test_acc.csv', index=False)
 
 print("Done!")

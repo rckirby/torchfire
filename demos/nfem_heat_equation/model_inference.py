@@ -69,7 +69,7 @@ class NeuralNetwork(nn.Module):
         torch.nn.init.normal_(self.Neuralmap2.weight, mean=0.0, std=.01)
 
     def forward(self, z):
-        """Forward pass before using FireDrake
+        """Forward pass before using Firedrake
 
         Args:
             z (tensor): the train vectors z
