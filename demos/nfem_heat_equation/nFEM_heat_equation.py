@@ -137,7 +137,8 @@ def train_loop(model, optimizer, z):
     for batch in range(int(num_train / batch_size)):
         u_train_pred, kappa = model(z[(batch) * batch_size:(batch + 1) * batch_size, :])
 
-        # This computes the residual loss given the tensors exp(kapp) and the neural network that generates the solution u_nn
+        # This computes the residual loss given the tensors exp(kapp)
+        # and the neural network that generates the solution u_nn
         residuals = model.ResidualTorch(u=u_train_pred, kappa=kappa)
         loss = residuals / batch_size
         loss_train += loss
@@ -179,7 +180,8 @@ for t in range(epochs):
     print(f"Epoch {t + 1}\n-------------------------------")
     print(f"Test Acc:  {str_test_u_acc}  Train loss {str_train_loss} \n")
 
-    # Save the training loss, testing accuracies and the neural network model for inference
+    # Save the training loss, testing accuracies and the neural network model
+    # for inference
     test_u_acc_old = 100
     if test_u_acc < test_u_acc_old:
         torch.save(model, 'results/best_model.pt')

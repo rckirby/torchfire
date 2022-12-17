@@ -13,7 +13,8 @@ def fd_to_torch(fd_callable, templates, classname):
         templates: Templates for converting arrays to Firedrake types
         classname: String with the class' name
     Returns:
-        subclass of torch.autograd.Function with methods `forward` and `backward`
+        subclass of torch.autograd.Function with methods `forward` and
+        `backward`
     """
 
     def forward(ctx, *inputs):

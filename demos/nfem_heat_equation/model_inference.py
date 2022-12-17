@@ -109,27 +109,31 @@ def plot_u(u, u_pred, kappa, i):
     plt.subplot(131)
     ax = plt.gca()
     ax.set_aspect("equal")
-    l = fd.tricontourf(from_numpy(np.reshape(kappa[i, :], (dimension_of_PoI, 1)), fd.Function(V)), axes=ax,
-                       levels=kappa_levels)
+    contour = fd.tricontourf(from_numpy(np.reshape(kappa[i, :], (dimension_of_PoI, 1)), fd.Function(V)),
+                             axes=ax,
+                             levels=kappa_levels)
     fd.triplot(mesh, axes=ax, interior_kw=dict(alpha=0.05))
-    plt.colorbar(l, fraction=0.046, pad=0.04)
+    plt.colorbar(contour, fraction=0.046, pad=0.04)
     plt.title(str(i) + 'th conductivity field ' + r'$\kappa$')
 
     plt.subplot(132)
     ax = plt.gca()
     ax.set_aspect("equal")
-    l = fd.tricontourf(from_numpy(np.reshape(u[i, :], (dimension_of_PoI, 1)), fd.Function(V)), axes=ax, levels=levels)
+    contour = fd.tricontourf(from_numpy(np.reshape(u[i, :], (dimension_of_PoI, 1)), fd.Function(V)),
+                             axes=ax,
+                             levels=levels)
     fd.triplot(mesh, axes=ax, interior_kw=dict(alpha=0.05))
-    plt.colorbar(l, fraction=0.046, pad=0.04)
+    plt.colorbar(contour, fraction=0.046, pad=0.04)
     plt.title('True ' + str(i) + 'th Test Solution by Firedrake')
 
     plt.subplot(133)
     ax = plt.gca()
     ax.set_aspect("equal")
-    l = fd.tricontourf(from_numpy(np.reshape(u_pred[i, :], (dimension_of_PoI, 1)), fd.Function(V)), axes=ax,
-                       levels=levels)
+    contour = fd.tricontourf(from_numpy(np.reshape(u_pred[i, :], (dimension_of_PoI, 1)), fd.Function(V)),
+                             axes=ax,
+                             levels=levels)
     fd.triplot(mesh, axes=ax, interior_kw=dict(alpha=0.05))
-    plt.colorbar(l, fraction=0.046, pad=0.04)
+    plt.colorbar(contour, fraction=0.046, pad=0.04)
     plt.title('Predicted ' + str(i) + 'th Solution by nFEM')
 
     plt.savefig("results/predicted_solutions/pred_" + str(i) + ".png", dpi=600, bbox_inches='tight')

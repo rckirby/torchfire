@@ -1,0 +1,9 @@
+torch>=1.12.1+cu116
+torchvision>=0.13.1+cu116
+torchaudio>=0.12.1+cu116
+imageio>=2.22.4
+fdm>=0.4.1
+pandas>=1.5.1
+matplotlib==3.5.2
+git+https://github.com/dolfin-adjoint/pyadjoint.git@master
+git+https://github.com/IvanYashchuk/firedrake-numpy-adjoint@master
