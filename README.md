@@ -5,7 +5,7 @@ Firedrake provides a high-level library for the automated solution of PDE by fin
 ## Problem 1: Solving heat equation with nFEM-TorchFire
 
 <p align="center">
-<img width="800" height = "250" src="demos/heat_eq_conductivity/results/animations.gif">
+<img width="800" height = "250" src="demos/nfem_heat_equation/results/animations.gif">
 <figcaption><b>Figure 1:</b> (Left) Ground truth conductivity diffusion, (Middle) Temperature field obtained by Firedrake software, (Right) Temperature field obtained by nFEM, TorchFire</figcaption>
 </p>
 
