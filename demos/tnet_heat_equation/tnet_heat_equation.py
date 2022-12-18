@@ -29,6 +29,8 @@ noise_level = 0.005
 
 
 # STEP 1. Loading data from .csv files
+# Data for training and testing has been pre-built and exported to .csv files
+# to avoid the need to generate data again each time the code is run.
 def load_data(name, target_shape=(-1,)):
     return torch.tensor(np.reshape(pd.read_csv(name).to_numpy(), target_shape)).to(device)
 
