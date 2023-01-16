@@ -27,7 +27,14 @@ alpha = 8e3  # this value is the best for noise level of 0.005
 noise_level = 0.005
 
 
-# 1. Loading data by pandas
+# STEP 1. Loading data from .csv files
+# Data for training and testing has been pre-built and exported to .csv files
+# to avoid the need to generate data again each time the code is run.
+# To Generate data, we follow two steps:
+# 1. Drawing random kappa samples (train/test parameters) using KL expansion formula.
+# 2. Solving Firedrake solver for solution state.
+# 3. Applying the observation operator to achieve 10 observables
+
 def load_data(name, target_shape=(-1,)):
     return torch.tensor(np.reshape(pd.read_csv(name).to_numpy(), target_shape)).to(device)
 

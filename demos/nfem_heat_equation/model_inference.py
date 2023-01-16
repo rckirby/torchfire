@@ -21,14 +21,17 @@ neurons = 1000
 
 
 # STEP 1. Loading data from .csv files
+# Data for training and testing has been pre-built and exported to .csv files
+# to avoid the need to generate data again each time the code is run.
+# To Generate data, we follow two steps:
+# 1. Drawing random kappa samples (train/test parameters) using KL expansion formula.
+# 2. Solving Firedrake solver for solution state (for test data).
+
 def load_data(name, target_shape=(-1,)):
     return torch.tensor(np.reshape(pd.read_csv(name).to_numpy(), target_shape)).to(device)
 
 
 # 1.1 Loading train and test data
-train_Observations_synthetic = load_data('data/Training_Solutions_u.csv', (num_train_ultimate, -1))
-train_Observations_synthetic = train_Observations_synthetic[:num_train, :]
-
 train_Parameters = load_data('data/Training_KL_Expansion_coefficients.csv', (num_train_ultimate, -1))
 train_Parameters = train_Parameters[:num_train, :]
 
