@@ -8,3 +8,8 @@ demos/VisualizingResults/
 demos/*/torchfire.py
 ml_templates/*
 Convert_data_to_Firedrake/*
+
+*.git
+*.pt
+*.png
+*.csv

@@ -86,6 +86,8 @@ def solve_firedrake(exp_u):
 templates = (firedrake.Function(V),)
 diff_solver = fd_to_torch(solve_firedrake, templates, "solverTorch").apply
 
+def diffSolverWrapper(k, ind):
+    return diff_solver(k)[ind].squeeze()
 
 # STEP 3. Building neural network
 class NeuralNetwork(nn.Module):
@@ -131,7 +133,7 @@ class NeuralNetwork(nn.Module):
         """
 
         loss_mc = torch.zeros(1, device=device)
-
+        
         for _, (u_obs_true_, kappa_) in enumerate(zip(train_observations, kappa)):
             u_ = diff_solver(kappa_)[obs_indices].squeeze()
 
