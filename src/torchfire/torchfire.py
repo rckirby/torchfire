@@ -154,8 +154,6 @@ def torchfireParallelMap(function_name: str, data: list, comm) -> list:
     
     # initialize scenarios left to the total number of scenarios to run
     scenarios_left = len(data)
-    print(f"left: {scenarios_left}", flush=True)
-    print(f"available_procs: {available_procs}", flush=True)
     while scenarios_left > 0:
         # check workers for results
         s = MPI.Status()
@@ -164,7 +162,6 @@ def torchfireParallelMap(function_name: str, data: list, comm) -> list:
         if s.tag == FLAGS.RUN_FINISHED:
             solutions.append(comm.recv())
             scenarios_left -= 1
-            print(f"left: {scenarios_left}", flush=True)
             available_procs.append(s.source)
 
         # assign more work if there are free processes

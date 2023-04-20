@@ -77,11 +77,13 @@ def train_loop(model, optimizer, z, u_train_true, alpha,
     loss_ml = torch.mean(torch.square(z_pred - z_batch * 0)) * num_truncated_series
 
     print("computing MC loss")
-    loss_mc = solverTorch(kappa, u_obs_batch, comm)
-    loss = loss_ml + alpha * loss_mc * num_observation / num_train
+    loss_mc = solverTorch(kappa, u_obs_batch, comm) * num_observation / num_train
+    loss = loss_ml + alpha * loss_mc
 
     optimizer.zero_grad()
-    loss.backward()
+    #loss.backward()
+    loss_mc.backward()
+    print(model.Neuralmap1.weight.grad)
     optimizer.step()
 
     return loss
@@ -126,7 +128,7 @@ def run(factory_functions: dict, ensemble_comm) -> None:
     # Set the model and optimizer parameters
     learning_rate = 1e-3
     batch_size = num_train
-    epochs = 10
+    epochs = 2
     neurons = 5000
 
     alpha = 8e3  # this value is the best for noise level of 0.005
