@@ -4,6 +4,9 @@ import numpy as np
 import torch
 from fecr import evaluate_primal, evaluate_pullback
 
+from time import sleep
+
+from mpi4py import MPI
 
 def fd_to_torch(fd_callable, templates, classname):
     """Creates a subclass of torch.autograd.Function implementing
@@ -18,6 +21,7 @@ def fd_to_torch(fd_callable, templates, classname):
     """
 
     def forward(ctx, *inputs):
+
         device = inputs[0].device
         np_inputs = [t.cpu().detach().numpy().astype(np.float64()) for t in inputs]
         np_output, fd_output, fd_input, tape = evaluate_primal(
@@ -48,3 +52,155 @@ def fd_to_torch(fd_callable, templates, classname):
                "backward": staticmethod(backward)}
 
     return type(classname, bases, members)
+
+
+class FLAGS:
+    RECEIVED = 1
+    RUN_FINISHED = 2
+    EXIT = 3
+    NEW_DATA = 4
+    CALL_FACTORY = 5
+    
+def torchfireExit(comm) -> None:
+    """
+        Sends an exit signal to all workers on comm. 
+        Call this function from the root process to exit torchfireRunWorker.
+    """
+    mpi_size = comm.Get_size()
+    available_procs = [i for i in range(1, mpi_size)]
+    for proc in available_procs:
+        req = comm.isend([], proc, FLAGS.EXIT)
+        req.wait()
+
+    
+def torchfireRunWorker(factory_functions: dict, built_functions: dict,
+                       ensemble_comm, local_comm) -> None:
+    """
+        Torchfire worker processes sit in here waiting for work to do. 
+        In this initial implementation, there are two things they can do:
+        call factory functions provided by the factory_functions input dict, 
+        and run functions that have been built. Arguments passed to the 
+        factory functions are passed through a dictionary stored in data['data']
+        where data is the data received from the root process. 
+        Built functions are called by unpacking the arguments in data['data']. 
+
+        Args: 
+            factory_functions (dict): A dictionary mapping string names to factory functions.
+                                      Factory functions are expected to return a tuple:
+                                        (name, function_handle).
+            built_functions (dict):   A dictionary mapping string names to functions that 
+                                      are ready to be called for doing work. torchfireRunWorker
+                                      has two call modes: CALL_FACTORY and NEW_DATA. 
+                                      CALL_FACTORY looks for the function name in factory_functions
+                                      and NEW_DATA looks for name in built_functions.
+            ensemble_comm (MPI_Comm): MPI communicator to listen to for work. 
+            local_comm (MPI_Comm):    MPI communicator used for local work. Automatically
+                                      added to all factory function argument dictionaries 
+                                      as args['local_comm'] = local_comm
+                                      
+    """
+    print(f"starting worker process {ensemble_comm.Get_rank()}", flush=True)
+    while True:
+        status = MPI.Status()
+        data = ensemble_comm.recv(source=0, status=status)
+        if status.tag == FLAGS.EXIT:
+            print(f"Got exit signal on {ensemble_comm.Get_rank()}")
+            break
+
+        if status.tag == FLAGS.CALL_FACTORY:
+            f = factory_functions[data['function_name']]
+            args = data['data']
+            args['local_comm'] = local_comm
+            built_name, func_handle = f(args)
+            built_functions[built_name] = func_handle
+        elif status.tag == FLAGS.NEW_DATA:
+            # first check to make sure the function exists
+            # if data['function_name']...
+            f = built_functions[data['function_name']]
+            return_val = f(*data['data'])
+
+            # mpi send results back to root
+            req = ensemble_comm.isend(return_val, 0, FLAGS.RUN_FINISHED)
+            req.wait()
+    print(f"leaving worker process {ensemble_comm.Get_rank()}", flush=True)
+        
+def torchfireParallelMap(function_name: str, data: list, comm) -> list:
+    """
+        This function acts as the scheduler for calling function_name
+        across all items in data. It should only be called my 
+        the root of comm as it will dispatch work to worker processes 
+        via send/recv calls and monitor processes to determine when the work is done. 
+
+        Args: 
+            function_name (str): This is the function name as a string. It will be looked 
+                                 up on the worker processes registered_functions dict. 
+                                 If not present, it will raise an exception. 
+            data (list):         This contains a list of the data that will be looped over. 
+                                 function_name is called as:
+                                   registered_functions[function_name](*(data.pop()))
+                                 so data should be a list of tuples or a list of lists.
+                                 This can easily be created for multiple lists 
+                                 by zipping lists together: data = zip(list1, list2)
+            comm (MPI comm):     This is the communicator over which the data will be 
+                                 sent. This is the ensemble comm, not the local comm.
+                                 
+        Returns:
+            List of results, the same size as data. Reduction is done on the calling code.
+    """
+    
+    mpi_size = comm.Get_size()
+    available_procs = [i for i in range(1, mpi_size)]
+    solutions = []
+    
+    # initialize scenarios left to the total number of scenarios to run
+    scenarios_left = len(data)
+    print(f"left: {scenarios_left}", flush=True)
+    print(f"available_procs: {available_procs}", flush=True)
+    while scenarios_left > 0:
+        # check workers for results
+        s = MPI.Status()
+        comm.Iprobe(status=s)
+        
+        if s.tag == FLAGS.RUN_FINISHED:
+            solutions.append(comm.recv())
+            scenarios_left -= 1
+            print(f"left: {scenarios_left}", flush=True)
+            available_procs.append(s.source)
+
+        # assign more work if there are free processes
+        if len(available_procs) > 0 and len(data) > 0:
+            curr_proc = available_procs.pop(0)
+            curr_data = data.pop(0) # assumes data is list of list or list of tuple
+
+            # need to add function name to dictionary
+            compact_data = {
+                'function_name': function_name,
+                'data': curr_data
+            }
+            
+            # block here to ensure the process starts before moving on so we don't overwrite buffer
+            req = comm.isend(compact_data, curr_proc, FLAGS.NEW_DATA)
+            req.wait()
+        elif len(available_procs) == 0:
+            # if there are no processes available, wait a bit
+            sleep(0.1)
+    return solutions
+
+def torchfireBuildFactory(function_name: str, args: dict, ensemble_comm) -> None:
+    """
+        Simple function wrapping the MPI calls to direct all 
+        worker processes to build factory function with function_name. 
+        Use individual send/recv since the worker processes are blocking 
+        on a recv, not expecting a broadcast. This allows the worker 
+        code to be more general and for us not to worry about synchonizing broadcast
+        calls.        
+    """
+    mpi_size = ensemble_comm.Get_size()
+    available_procs = [i for i in range(1, mpi_size)]
+    compact_args = {
+        'function_name': function_name,
+        'data': args
+    }
+    for proc in available_procs:
+        req = ensemble_comm.isend(compact_args, proc, FLAGS.CALL_FACTORY)
+        req.wait()
