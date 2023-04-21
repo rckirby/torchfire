@@ -21,10 +21,10 @@ repeat_fac = 1  # Keep it 1 for now!
 
 learning_rate = 1e-3
 batch_size = num_train
-epochs = 100
+epochs = 5
 neurons = 5000
 
-alpha = 8e3  # this value is the best for noise level of 0.005
+alpha = 0#8e3  # this value is the best for noise level of 0.005
 noise_level = 0.005
 
 
@@ -137,7 +137,7 @@ class NeuralNetwork(nn.Module):
 
             loss_mc += torch.mean(torch.square(u_ - u_obs_true_)) * num_observation / num_train
 
-        return loss_mc
+        return loss_mc[0]
 
 
 model = NeuralNetwork().to(device)
@@ -152,7 +152,7 @@ def train_loop(model, optimizer, z, u_train_true, alpha):
 
     loss_mc = model.SolverTorch(kappa, u_obs_batch)
     loss = loss_ml + alpha * loss_mc
-    print(f"ML loss: {loss_ml:1.4e},  MC loss: {loss_mc[0]:1.4e}", flush=True)
+    print(f"ML loss: {loss_ml:1.4e},  MC loss: {loss_mc:1.4e}", flush=True)
     
     optimizer.zero_grad()
     loss.backward()
@@ -166,7 +166,7 @@ def test_loop(model, z_test, u_test_true):
         z_test_pred, _ = model(u_test_true)
         kappa_pred = torch.einsum('ij,bj -> bi', torch.matmul(Eigen, Sigma).float(), z_test_pred)
         kappa_true = torch.einsum('ij,bj -> bi', torch.matmul(Eigen, Sigma).float(), z_test.float())
-
+    
     return torch.mean(
         torch.linalg.vector_norm(kappa_pred - kappa_true, dim=-1) ** 2 / torch.linalg.vector_norm(kappa_true,
                                                                                                   dim=-1) ** 2)
@@ -187,7 +187,7 @@ for t in range(epochs):
     test_u_acc = test_loop(model, test_Parameters, test_Observations)
 
     str_test_u_acc = numpy_formatter(test_u_acc.cpu().detach().numpy())
-    str_train_loss = numpy_formatter(train_loss.cpu().detach().numpy()[0])
+    str_train_loss = numpy_formatter(train_loss.cpu().detach().numpy())
 
     if t % 1 == 0:
         print(f"Epoch {t + 1}\n-------------------------------")

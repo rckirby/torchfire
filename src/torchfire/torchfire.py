@@ -125,6 +125,7 @@ def torchfireParallelMapReduce(function_name: str, comm, *data): # -> list:
     """
     f = MpiReduceTorchFunction()
     output = f.apply(function_name, comm, *data)
+    output = output.sum()
     return output
     
 

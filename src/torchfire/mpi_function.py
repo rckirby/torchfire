@@ -37,8 +37,8 @@ class MpiReduceTorchFunction(torch.autograd.Function):
         """
         mpi_size = comm.Get_size()
         available_procs = [i for i in range(1, mpi_size)]
-        solutions = []
         # this needs changed to be general. Hardcoding now to test if it works first.
+        solutions = torch.zeros((data[1].shape[0]), requires_grad=True)
         grads = torch.zeros_like(data[1], requires_grad=True)
 
         # initialize scenarios left to the total number of scenarios to run
@@ -52,7 +52,7 @@ class MpiReduceTorchFunction(torch.autograd.Function):
             
             if s.tag == FLAGS.RUN_FINISHED:
                 outputs = comm.recv()
-                solutions.append(outputs['val'])
+                solutions[outputs['index']] = outputs['val']
                 grads[outputs['index'], :] = outputs['grad']
                 #grads.append(outputs['grad'])
                 scenarios_left -= 1
@@ -76,16 +76,12 @@ class MpiReduceTorchFunction(torch.autograd.Function):
             elif len(available_procs) == 0:
                 # if there are no processes available, wait a bit
                 sleep(0.1)
-                
-        reduced_sol = torch.zeros_like(solutions[0], requires_grad=True)
-        for sol in solutions:
-            reduced_sol += sol
         
         # we assume that the only gradients that matter are the gradients
         # of the output w.r.t. the input
         #print(grads, flush=True)
         ctx.save_for_backward(None, grads)
-        return reduced_sol
+        return solutions
         
     @staticmethod
     def backward(ctx, grad_outputs):

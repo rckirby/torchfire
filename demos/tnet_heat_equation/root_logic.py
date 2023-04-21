@@ -73,11 +73,12 @@ def train_loop(model, optimizer, z, u_train_true, alpha,
     #print("computing MC loss")
     loss_mc = solverTorch(kappa, u_obs_batch, comm) * num_observation / num_train
     #print(loss_mc)
-    loss = loss_ml + alpha * loss_mc
+    #print(alpha)
+    loss = alpha * loss_mc + loss_ml
     print(f"ML loss: {loss_ml:1.4e},  MC loss: {loss_mc:1.4e}", flush=True)
     
     optimizer.zero_grad()
-    loss.backward()
+    loss.backward(retain_graph=True)
     #print("weight.grad:")
     #print(model.Neuralmap1.weight.grad)
     #print(kappa.grad)
@@ -125,10 +126,10 @@ def run(factory_functions: dict, ensemble_comm) -> None:
     # Set the model and optimizer parameters
     learning_rate = 1e-3
     batch_size = num_train
-    epochs = 100
+    epochs = 5
     neurons = 5000
 
-    alpha = 8e3  # this value is the best for noise level of 0.005
+    alpha = 0 #8e3  # this value is the best for noise level of 0.005
     noise_level = 0.005
 
     # STEP 1. Loading data from .csv files
