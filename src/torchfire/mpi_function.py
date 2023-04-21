@@ -83,7 +83,7 @@ class MpiReduceTorchFunction(torch.autograd.Function):
         
         # we assume that the only gradients that matter are the gradients
         # of the output w.r.t. the input
-        print(grads, flush=True)
+        #print(grads, flush=True)
         ctx.save_for_backward(None, grads)
         return reduced_sol
         

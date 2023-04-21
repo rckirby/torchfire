@@ -21,7 +21,7 @@ repeat_fac = 1  # Keep it 1 for now!
 
 learning_rate = 1e-3
 batch_size = num_train
-epochs = 1
+epochs = 100
 neurons = 5000
 
 alpha = 8e3  # this value is the best for noise level of 0.005
@@ -152,7 +152,8 @@ def train_loop(model, optimizer, z, u_train_true, alpha):
 
     loss_mc = model.SolverTorch(kappa, u_obs_batch)
     loss = loss_ml + alpha * loss_mc
-
+    print(f"ML loss: {loss_ml:1.4e},  MC loss: {loss_mc[0]:1.4e}", flush=True)
+    
     optimizer.zero_grad()
     loss.backward()
     optimizer.step()
@@ -188,7 +189,7 @@ for t in range(epochs):
     str_test_u_acc = numpy_formatter(test_u_acc.cpu().detach().numpy())
     str_train_loss = numpy_formatter(train_loss.cpu().detach().numpy()[0])
 
-    if t % 50 == 0:
+    if t % 1 == 0:
         print(f"Epoch {t + 1}\n-------------------------------")
         print(f"Test Acc:  {str_test_u_acc} Train loss {str_train_loss} \n")
 

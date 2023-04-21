@@ -67,18 +67,20 @@ def train_loop(model, optimizer, z, u_train_true, alpha,
     u_obs_batch, z_batch = u_train_true.float(), z.float()
 
     z_pred, kappa = model(u_obs_batch)
-    print("computing ML loss")
+    #print("computing ML loss")
     loss_ml = torch.mean(torch.square(z_pred - z_batch * 0)) * num_truncated_series
 
-    print("computing MC loss")
+    #print("computing MC loss")
     loss_mc = solverTorch(kappa, u_obs_batch, comm) * num_observation / num_train
-    print(loss_mc)
+    #print(loss_mc)
     loss = loss_ml + alpha * loss_mc
-
+    print(f"ML loss: {loss_ml:1.4e},  MC loss: {loss_mc:1.4e}", flush=True)
+    
     optimizer.zero_grad()
     loss.backward()
-    print("weight.grad:")
-    print(model.Neuralmap1.weight.grad)
+    #print("weight.grad:")
+    #print(model.Neuralmap1.weight.grad)
+    #print(kappa.grad)
     optimizer.step()
 
     return loss
@@ -116,14 +118,14 @@ def run(factory_functions: dict, ensemble_comm) -> None:
     # Set the training parameters
     num_train_ultimate = 10000
     num_train = num_train_ultimate 
-    num_train = 2
+    num_train = 100
     num_test = 500
     repeat_fac = 1  # Keep it 1 for now!
 
     # Set the model and optimizer parameters
     learning_rate = 1e-3
     batch_size = num_train
-    epochs = 2
+    epochs = 100
     neurons = 5000
 
     alpha = 8e3  # this value is the best for noise level of 0.005
@@ -191,7 +193,7 @@ def run(factory_functions: dict, ensemble_comm) -> None:
         
         if t % 1 == 0:
             print(f"Epoch {t + 1}\n-------------------------------")
-            print(f"Test Acc:  {str_test_u_acc} Train loss {str_train_loss} \n")
+            print(f"Test Rel Err:  {str_test_u_acc}  Train loss: {str_train_loss} \n", flush=True)
             
             # Save the training loss, testing accuracies and the neural network model for inference
         test_u_acc_old = 100
