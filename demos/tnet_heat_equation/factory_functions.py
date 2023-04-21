@@ -90,7 +90,8 @@ def factory_mcLoss(args: dict) -> tuple[str, Callable]:
 
         # compute L2 loss 
         loss = torch.mean(torch.square(u - u_obs_true))
-        return loss    
+        loss.backward()
+        return {'val': loss, 'grad': k.grad}
     return "mcLoss", func
 
 # Dictionary with string-function mapping so master process can

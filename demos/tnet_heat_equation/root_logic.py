@@ -1,6 +1,6 @@
 from mpi4py import MPI
 
-from torchfire import torchfireParallelMap, torchfireExit, torchfireBuildFactory
+from torchfire import torchfireParallelMapReduce, torchfireExit, torchfireBuildFactory
 
 import numpy as np
 import pandas as pd
@@ -58,15 +58,9 @@ def solverTorch(kappa, train_observations, comm):
     
         Returns:
              scalar : mean square error between reproduced observations and sparse true observations
-    """
-    
-    loss_mc = torch.zeros(1, device=device)
-    losses = torchfireParallelMap("mcLoss", list(zip(train_observations, kappa)), comm)
-    
-    for l in losses:
-        loss_mc += l
-    return loss_mc
-
+    """    
+    losses = torchfireParallelMapReduce("mcLoss", comm, train_observations, kappa)
+    return losses
 
 def train_loop(model, optimizer, z, u_train_true, alpha,
                num_truncated_series, num_train, num_observation, comm):
@@ -78,11 +72,12 @@ def train_loop(model, optimizer, z, u_train_true, alpha,
 
     print("computing MC loss")
     loss_mc = solverTorch(kappa, u_obs_batch, comm) * num_observation / num_train
+    print(loss_mc)
     loss = loss_ml + alpha * loss_mc
 
     optimizer.zero_grad()
-    #loss.backward()
-    loss_mc.backward()
+    loss.backward()
+    print("weight.grad:")
     print(model.Neuralmap1.weight.grad)
     optimizer.step()
 
@@ -192,7 +187,7 @@ def run(factory_functions: dict, ensemble_comm) -> None:
         test_u_acc = test_loop(model, test_parameters, test_observations, Eigen, Sigma)
         
         str_test_u_acc = numpy_formatter(test_u_acc.cpu().detach().numpy())
-        str_train_loss = numpy_formatter(train_loss.cpu().detach().numpy()[0])
+        str_train_loss = numpy_formatter(train_loss.cpu().detach().numpy())
         
         if t % 1 == 0:
             print(f"Epoch {t + 1}\n-------------------------------")
