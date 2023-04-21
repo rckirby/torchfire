@@ -53,7 +53,7 @@ class MpiReduceTorchFunction(torch.autograd.Function):
             if s.tag == FLAGS.RUN_FINISHED:
                 outputs = comm.recv()
                 solutions.append(outputs['val'])
-                grads[outputs['index'], :] = outputs['val']
+                grads[outputs['index'], :] = outputs['grad']
                 #grads.append(outputs['grad'])
                 scenarios_left -= 1
                 available_procs.append(s.source)
@@ -83,6 +83,7 @@ class MpiReduceTorchFunction(torch.autograd.Function):
         
         # we assume that the only gradients that matter are the gradients
         # of the output w.r.t. the input
+        print(grads, flush=True)
         ctx.save_for_backward(None, grads)
         return reduced_sol
         

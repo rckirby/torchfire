@@ -116,7 +116,7 @@ def run(factory_functions: dict, ensemble_comm) -> None:
     # Set the training parameters
     num_train_ultimate = 10000
     num_train = num_train_ultimate 
-    num_train = 100
+    num_train = 2
     num_test = 500
     repeat_fac = 1  # Keep it 1 for now!
 
