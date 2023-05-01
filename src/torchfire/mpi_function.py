@@ -85,5 +85,27 @@ class MpiReduceTorchFunction(torch.autograd.Function):
         
     @staticmethod
     def backward(ctx, grad_outputs):
-        grads = ctx.saved_tensors
+        local_grads = ctx.saved_tensors
+
+        grads = []
+        grad_outputs_ndims = len(list(grad_outputs.size()))
+        for g in local_grads:
+            if g is None:
+                grads.append(None)
+                continue
+
+            if grad_outputs_ndims == 1:
+                # elementwise multiplication with broadcasting
+                # assumes that the first dimension of grad_outputs
+                # is equal to the first dimension of g
+                assert(g.shape[0] == grad_outputs.shape[0])
+                extra_dims = [1 for _ in range(len(list(g.shape)) - 1)]
+                grads.append(torch.reshape(grad_outputs, (-1, *extra_dims)) * g)
+            elif grad_outputs_ndims == 0:
+                grads.append(grad_outputs * g)
+            else:
+                raise NotImplementedError(
+                    f"grad_outputs with {grad_outputs_ndims} "
+                    + "dimensions not yet supported."
+                )
         return None, None, *grads

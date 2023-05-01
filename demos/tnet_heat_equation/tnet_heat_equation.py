@@ -21,10 +21,10 @@ repeat_fac = 1  # Keep it 1 for now!
 
 learning_rate = 1e-3
 batch_size = num_train
-epochs = 5
+epochs = 100
 neurons = 5000
 
-alpha = 0#8e3  # this value is the best for noise level of 0.005
+alpha = 8e3  # this value is the best for noise level of 0.005
 noise_level = 0.005
 
 
